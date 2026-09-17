@@ -1,0 +1,3 @@
+app\services\song_service.py:116:    artist = await get_artist_for_user(db, user)
+app\services\song_service.py:238:        artist = await get_artist_for_user(db, user)
+app\services\song_service.py:293:    artist = await get_artist_for_user(db, user)

@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: oklch(0.145 0.008 285);
+  --color-surface: oklch(0.185 0.01 285);
+  --color-surface-2: oklch(0.23 0.012 285);
+  --color-line: oklch(0.3 0.015 285);
+  --color-ink: oklch(0.93 0.005 285);
+  --color-muted: oklch(0.68 0.012 285);
+  --color-accent: oklch(0.7 0.19 295);
+  --color-accent-strong: oklch(0.76 0.21 295);
+  --radius-card: 0.75rem;
+  --radius-pill: 999px;
+}
+
+.bg-dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: white;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+input,
+textarea,
+select {
+  color-scheme: dark;
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

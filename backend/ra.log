@@ -1,0 +1,1 @@
+app\api\routes\songs.py:82:    user: User = Depends(require_artist),
