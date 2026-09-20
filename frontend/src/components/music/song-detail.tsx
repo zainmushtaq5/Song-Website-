@@ -5,6 +5,7 @@ import { Flame, Heart, Music4, Pause, Play, ShieldCheck } from "lucide-react";
 
 import { DownloadButton } from "@/components/music/download-button";
 import { LikeButton } from "@/components/music/like-button";
+import { AddToPlaylist } from "@/components/playlists/add-to-playlist";
 import { Button } from "@/components/ui/button";
 import { resolveMediaUrl } from "@/lib/api-url";
 import { formatCount, formatDuration } from "@/lib/format";
@@ -74,6 +75,7 @@ export function SongDetail({ song }: { song: Song }) {
               {isCurrent && isPlaying ? "Pause" : "Play"}
             </Button>
             <LikeButton songId={song.id} likeCount={song.like_count} />
+            <AddToPlaylist songId={song.id} />
             <DownloadButton songId={song.id} songTitle={song.title} downloadAllowed={song.download_allowed} />
           </div>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Music4, Pause, Play } from "lucide-react";
 
+import { AddToPlaylist } from "@/components/playlists/add-to-playlist";
 import { DownloadButton } from "@/components/music/download-button";
 import { LikeButton } from "@/components/music/like-button";
 import { resolveMediaUrl } from "@/lib/api-url";
@@ -80,11 +81,14 @@ export function SongCard({ song, queue }: SongCardProps) {
         </div>
         <div className="flex shrink-0 flex-col">
           <LikeButton songId={song.id} likeCount={song.like_count} />
-          <DownloadButton
-            songId={song.id}
-            songTitle={song.title}
-            downloadAllowed={song.download_allowed}
-          />
+          <div className="flex">
+            <AddToPlaylist songId={song.id} />
+            <DownloadButton
+              songId={song.id}
+              songTitle={song.title}
+              downloadAllowed={song.download_allowed}
+            />
+          </div>
         </div>
       </div>
     </article>

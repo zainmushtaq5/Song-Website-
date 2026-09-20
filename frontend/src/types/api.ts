@@ -37,6 +37,23 @@ export interface Song {
 
 export type MyProfile = User;
 
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_public: boolean;
+  song_count: number;
+  cover_url: string | null;
+  created_at: string;
+}
+
+export interface PlaylistDetail extends Omit<PlaylistSummary, "cover_url"> {
+  owner: string;
+  cover_url: string | null;
+  songs: Song[];
+}
+
 export interface ArtistPublic {
   id: string;
   name: string;

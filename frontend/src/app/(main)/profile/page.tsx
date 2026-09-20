@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, LogOut, Music4, ShieldCheck, UserRound, UserRoundCheck } from "lucide-react";
+import { Heart, ListMusic, LogOut, Music4, ShieldCheck, Trash2, UserRound, UserRoundCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -12,7 +12,8 @@ import { api } from "@/lib/api";
 import { logout as authLogout, useAuthStore } from "@/stores/auth";
 import { useFollowsStore } from "@/stores/follows";
 import { useLikesStore } from "@/stores/likes";
-import type { ArtistPublic, MyProfile } from "@/types/api";
+import { toast } from "@/stores/toast";
+import type { ArtistPublic, MyProfile, PlaylistSummary } from "@/types/api";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -110,6 +111,9 @@ export default function ProfilePage() {
         </Link>
       )}
 
+      {/* My playlists */}
+      <MyPlaylistsSection />
+
       {/* Following */}
       <h2 className="mb-3 mt-8 flex items-center gap-2 text-base font-bold tracking-tight">
         <UserRoundCheck className="h-4.5 w-4.5 text-accent" aria-hidden />
@@ -173,6 +177,119 @@ export default function ProfilePage() {
         <LogOut className="h-4 w-4" aria-hidden />
         Log out
       </Button>
+    </div>
+  );
+}
+
+
+function MyPlaylistsSection() {
+  const user = useAuthStore((s) => s.user);
+  const [playlists, setPlaylists] = useState<PlaylistSummary[] | null>(null);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  async function load() {
+    try {
+      setPlaylists(await api<PlaylistSummary[]>("/api/playlists/mine"));
+    } catch {
+      setPlaylists([]);
+    }
+  }
+
+  useEffect(() => {
+    if (user) void load();
+  }, [user]);
+
+  async function create() {
+    const name = newName.trim();
+    if (!name) return;
+    setBusy(true);
+    try {
+      await api("/api/playlists", { method: "POST", json: { name } });
+      setNewName("");
+      await load();
+      toast("Playlist created", "success");
+    } catch {
+      toast("Could not create playlist", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(playlist: PlaylistSummary) {
+    try {
+      await api(`/api/playlists/${playlist.id}`, { method: "DELETE" });
+      toast(`Deleted ${playlist.name}`, "success");
+      await load();
+    } catch {
+      toast("Could not delete playlist", "error");
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="mb-3 mt-8 flex items-center gap-2 text-base font-bold tracking-tight">
+        <ListMusic className="h-4.5 w-4.5 text-accent" aria-hidden />
+        My playlists
+      </h2>
+      <div className="flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && create()}
+          placeholder="New playlist name…"
+          maxLength={120}
+          aria-label="New playlist name"
+          className="h-10 min-w-0 flex-1 rounded-card border border-line bg-surface px-3 text-sm outline-none placeholder:text-muted/60 focus:border-accent"
+        />
+        <Button onClick={create} loading={busy} disabled={!newName.trim()}>
+          Create
+        </Button>
+      </div>
+      {playlists === null ? (
+        <p className="mt-3 text-sm text-muted">Loading…</p>
+      ) : playlists.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">No playlists yet — create one above, then add songs from any song card.</p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {playlists.map((p) => (
+            <li
+              key={p.id}
+              className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-2.5"
+            >
+              <span className="h-9 w-9 shrink-0 overflow-hidden rounded-card border border-line bg-surface-2">
+                {p.cover_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- dynamic signed URL
+                  <img
+                    src={resolveMediaUrl(p.cover_url) ?? undefined}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-accent" aria-hidden>
+                    <ListMusic className="h-4 w-4" />
+                  </span>
+                )}
+              </span>
+              <Link href={`/playlists/${p.slug}`} className="min-w-0 flex-1 truncate text-sm font-semibold transition-colors hover:text-accent">
+                {p.name}
+                <span className="ml-2 text-[11px] font-normal text-muted">
+                  {p.song_count} {p.song_count === 1 ? "song" : "songs"}
+                  {!p.is_public && " · private"}
+                </span>
+              </Link>
+              <button
+                onClick={() => remove(p)}
+                aria-label={`Delete playlist ${p.name}`}
+                className="shrink-0 rounded-card p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-red-400"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
