@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware";
 import { api, configureAuth } from "@/lib/api";
 import { useFollowsStore } from "@/stores/follows";
 import { useLikesStore } from "@/stores/likes";
+import { useNotificationsStore } from "@/stores/notifications";
 import type { User } from "@/types/api";
 
 interface Tokens {
@@ -103,6 +104,7 @@ export async function validateSession(): Promise<void> {
     clear();
     useLikesStore.getState().reset();
     useFollowsStore.getState().reset();
+    useNotificationsStore.getState().reset();
   }
 }
 
@@ -110,4 +112,5 @@ export function logout(): void {
   useAuthStore.getState().clear();
   useLikesStore.getState().reset();
   useFollowsStore.getState().reset();
+  useNotificationsStore.getState().reset();
 }

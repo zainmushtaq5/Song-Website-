@@ -6,6 +6,7 @@ import { Library, LogOut, Music2, Search, Upload, UserRound } from "lucide-react
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { logout, useAuthStore } from "@/stores/auth";
 
 const links = [
@@ -68,6 +69,7 @@ export function Navbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {mounted && user && <NotificationBell />}
           {mounted && user ? (
             <>
               <Link

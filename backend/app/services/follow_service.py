@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import enforce_rate_limit
 from app.models.engagement import Follow
+from app.models.notification import NotificationType
 from app.models.user import Artist, User
+from app.services import notification_service
 
 
 async def get_artist_by_slug(db: AsyncSession, slug: str) -> Artist | None:
@@ -59,6 +61,14 @@ async def toggle_follow(
 
     db.add(Follow(follower_id=user.id, artist_id=artist.id))
     await db.flush()
+    # Notify the artist's user account about the new follower
+    await notification_service.create_notification(
+        db,
+        user_id=artist.user_id,
+        type_=NotificationType.NEW_FOLLOWER,
+        message=f"{user.username} started following you",
+        actor_user_id=user.id,
+    )
     return True, artist
 
 

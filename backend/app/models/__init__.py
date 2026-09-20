@@ -3,6 +3,7 @@ from app.models.user import Artist, User, UserRole
 from app.models.song import AdminAction, Genre, LicenseType, Song, SongStatus
 from app.models.engagement import Download, Follow, Like, Play, PlaySource
 from app.models.playlist import Playlist, PlaylistSong
+from app.models.notification import Notification, NotificationType
 
 __all__ = [
     "Base",
@@ -21,4 +22,6 @@ __all__ = [
     "Follow",
     "Playlist",
     "PlaylistSong",
+    "Notification",
+    "NotificationType",
 ]

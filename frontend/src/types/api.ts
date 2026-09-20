@@ -54,6 +54,14 @@ export interface PlaylistDetail extends Omit<PlaylistSummary, "cover_url"> {
   songs: Song[];
 }
 
+export interface NotificationItem {
+  id: string;
+  type: "song_approved" | "song_rejected" | "new_follower";
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface ArtistPublic {
   id: string;
   name: string;

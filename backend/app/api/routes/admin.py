@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.core.database import get_db
+from app.models.notification import NotificationType
 from app.models.song import AdminAction, Song, SongStatus
 from app.models.user import User
 from app.schemas.song import SongOut, SongRejected, SongStatusOut
-from app.services import song_service
+from app.services import notification_service, song_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -59,6 +60,14 @@ async def approve_song(
     song.rejection_reason = None
     await db.flush()
     await _log_admin_action(db, admin, "song_approve", song, None)
+    # Notify the song's owner (artist user)
+    await notification_service.create_notification(
+        db,
+        user_id=song.artist.user_id,
+        type_=NotificationType.SONG_APPROVED,
+        message=f"Your song \"{song.title}\" was approved and is now live",
+        song_id=song.id,
+    )
     return SongStatusOut(id=song.id, status=song.status, rejection_reason=None)
 
 
@@ -78,4 +87,12 @@ async def reject_song(
     song.rejection_reason = data.rejection_reason
     await db.flush()
     await _log_admin_action(db, admin, "song_reject", song, data.rejection_reason)
+    # Notify the song's owner (artist user)
+    await notification_service.create_notification(
+        db,
+        user_id=song.artist.user_id,
+        type_=NotificationType.SONG_REJECTED,
+        message=f"Your song \"{song.title}\" was rejected: {data.rejection_reason}",
+        song_id=song.id,
+    )
     return SongStatusOut(id=song.id, status=song.status, rejection_reason=song.rejection_reason)
