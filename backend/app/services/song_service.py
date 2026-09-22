@@ -1,7 +1,8 @@
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException, Request, UploadFile, status
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -214,8 +215,34 @@ async def list_public_songs(
     if genre_slug:
         stmt = stmt.join(Genre, Song.genre_id == Genre.id).where(Genre.slug == genre_slug)
     if sort == "trending":
-        # Phase 1: play count only (recency decay arrives in Phase 2)
-        stmt = stmt.order_by(desc(Song.play_count))
+        # Phase 2: time-weighted score over the last 7 days.
+        # score = plays*1 + likes*3 + downloads*5 (recent only), then lifetime
+        # play_count as tiebreaker so older songs with no recent activity still
+        # surface in a stable order instead of vanishing.
+        week_ago = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=7)
+        plays_7 = (
+            select(func.count())
+            .select_from(Play)
+            .where(Play.song_id == Song.id, Play.created_at >= week_ago)
+            .correlate(Song)
+            .scalar_subquery()
+        )
+        likes_7 = (
+            select(func.count())
+            .select_from(Like)
+            .where(Like.song_id == Song.id, Like.created_at >= week_ago)
+            .correlate(Song)
+            .scalar_subquery()
+        )
+        downloads_7 = (
+            select(func.count())
+            .select_from(Download)
+            .where(Download.song_id == Song.id, Download.created_at >= week_ago)
+            .correlate(Song)
+            .scalar_subquery()
+        )
+        score = plays_7 * 1 + likes_7 * 3 + downloads_7 * 5
+        stmt = stmt.order_by(desc(score), desc(Song.play_count))
     else:
         stmt = stmt.order_by(desc(Song.created_at))
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
@@ -302,29 +329,61 @@ async def artist_uploads(db: AsyncSession, user: User) -> list[Song]:
 
 
 async def search(db: AsyncSession, request: Request, q: str) -> tuple[list[Song], list[Artist]]:
+    """Weighted search.
+
+    Song score (portable SQL, works on SQLite and Postgres):
+      exact title match      +50
+      title contains         +40
+      title prefix           +30 (additional)
+      artist name contains   +25
+      artist name prefix     +15 (additional)
+      description contains   +10
+      popularity             play_count * 0.01 + like_count * 0.05 (tiebreaker)
+    Artists are ordered by name-prefix match first, then contains.
+    """
     await enforce_rate_limit(request, "search")
-    if not q or len(q.strip()) < 2:
+    q = q.strip()
+    if not q or len(q) < 2:
         return [], []
-    pattern = f"%{q.strip()}%"
+
+    needle = func.lower(q)
+    contains = func.lower(f"%{q}%")
+    prefix = func.lower(f"{q}%")
+
+    title_exact = case((func.lower(Song.title) == needle, 50), else_=0)
+    title_has = case((func.lower(Song.title).like(contains), 40), else_=0)
+    title_prefix = case((func.lower(Song.title).like(prefix), 30), else_=0)
+    artist_has = case((func.lower(Artist.name).like(contains), 25), else_=0)
+    artist_prefix = case((func.lower(Artist.name).like(prefix), 15), else_=0)
+    desc_has = case((func.lower(Song.description).like(contains), 10), else_=0)
+    popularity = Song.play_count * 0.01 + Song.like_count * 0.05
+
+    score = title_exact + title_has + title_prefix + artist_has + artist_prefix + desc_has + popularity
+
     songs = (
         await db.execute(
             select(Song)
+            .join(Artist, Song.artist_id == Artist.id)
             .where(
                 Song.status == SongStatus.APPROVED,
                 Song.deleted_at.is_(None),
                 or_(
-                    func.lower(Song.title).like(func.lower(pattern)),
-                    func.lower(Song.description).like(func.lower(pattern)),
+                    func.lower(Song.title).like(contains),
+                    func.lower(Song.description).like(contains),
+                    func.lower(Artist.name).like(contains),
                 ),
             )
-            .order_by(desc(Song.play_count))
+            .order_by(desc(score), desc(Song.play_count), desc(Song.created_at))
             .limit(20)
         )
     ).scalars().all()
+
+    artist_prefix_first = case((func.lower(Artist.name).like(prefix), 1), else_=0)
     artists = (
         await db.execute(
             select(Artist)
-            .where(Artist.deleted_at.is_(None), func.lower(Artist.name).like(func.lower(pattern)))
+            .where(Artist.deleted_at.is_(None), func.lower(Artist.name).like(contains))
+            .order_by(desc(artist_prefix_first), func.lower(Artist.name))
             .limit(10)
         )
     ).scalars().all()
