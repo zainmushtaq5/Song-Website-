@@ -54,6 +54,14 @@ export interface PlaylistDetail extends Omit<PlaylistSummary, "cover_url"> {
   songs: Song[];
 }
 
+export interface ArtistAnalytics {
+  song_count: number;
+  totals: { plays: number; downloads: number; likes: number };
+  last_7_days: { plays: number; downloads: number };
+  last_30_days: { plays: number; downloads: number };
+  top_songs: { id: string; title: string; plays: number; downloads: number; likes: number }[];
+}
+
 export interface NotificationItem {
   id: string;
   type: "song_approved" | "song_rejected" | "new_follower";

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Music4, UploadCloud } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AnalyticsPanel } from "@/components/analytics/analytics-panel";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Textarea } from "@/components/ui/input";
@@ -219,6 +220,8 @@ function UploadView(props: {
           Submit for review
         </Button>
       </form>
+
+      <AnalyticsPanel />
 
       <h2 className="mb-3 mt-10 flex items-center gap-2 text-lg font-bold tracking-tight">
         <Music4 className="h-4.5 w-4.5 text-accent" aria-hidden />

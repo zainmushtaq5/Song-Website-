@@ -1,16 +1,20 @@
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.core.rate_limit import enforce_rate_limit
 from app.models.user import User
 from app.schemas.song import SongOut
-from app.schemas.auth import UserOut
-from app.services import follow_service, song_service
-from app.services.auth_service import to_user_out
+from app.services import analytics_service, follow_service, song_service
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("/me/analytics")
+async def my_analytics(
+    db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict:
+    return await analytics_service.get_analytics(db, user)
 
 
 @router.get("/me/following")
