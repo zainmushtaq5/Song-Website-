@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Songs Website API"
     ENVIRONMENT: str = "development"  # development | production
     DEBUG: bool = True
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3100"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3100"]
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://songs:songs@localhost:5432/songs"
