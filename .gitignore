@@ -29,3 +29,11 @@ backend/pytest-*.txt
 
 # E2E screenshots (regenerable via e2e/*.mjs scripts)
 frontend/e2e/screenshots/
+
+# Phase 3 dev artifacts
+*.test.db
+build-out*.txt
+e2e*-out.txt
+probe-out.txt
+live*-out.txt
+force-push*
