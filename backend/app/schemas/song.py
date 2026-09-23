@@ -23,6 +23,8 @@ class SongOut(BaseModel):
     slug: str
     description: str | None = None
     duration_sec: int
+    bitrate_kbps: int | None = None
+    sample_rate: int | None = None
     play_count: int
     download_count: int
     like_count: int

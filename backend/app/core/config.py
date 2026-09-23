@@ -18,6 +18,12 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_SECRET: str = "dev-secret-change-me"
+
+    # Background jobs (Phase 3.4): FFmpeg off the request thread + sweeps
+    JOB_WORKER_ENABLED: bool = True
+    JOB_POLL_SECONDS: float = 2.0
+    JOB_MAX_ATTEMPTS: int = 3
+    LICENSE_SWEEP_SECONDS: float = 300.0
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30

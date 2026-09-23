@@ -1,16 +1,17 @@
 "use client";
 
-import { FileCheck, ShieldCheck } from "lucide-react";
+import { Cog, FileCheck, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AdminJobs } from "@/components/music/admin-jobs";
 import { AdminLicenses } from "@/components/music/admin-licenses";
 import { AdminQueue } from "@/components/music/admin-queue";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import type { LicenseInfo, Song } from "@/types/api";
+import type { JobInfo, LicenseInfo, Song } from "@/types/api";
 
-type Tab = "songs" | "licenses";
+type Tab = "songs" | "licenses" | "jobs";
 
 export default function AdminPage() {
   const user = useAuthStore((s) => s.user);
@@ -64,6 +65,7 @@ export default function AdminPage() {
   const tabs: { id: Tab; label: string; count: number | null }[] = [
     { id: "songs", label: "Song review", count: pending?.length ?? null },
     { id: "licenses", label: "License review", count: licenses?.length ?? null },
+    { id: "jobs", label: "Jobs", count: null },
   ];
 
   return (
@@ -80,7 +82,13 @@ export default function AdminPage() {
               tab === t.id ? "bg-accent text-white" : "text-muted hover:bg-surface-2 hover:text-ink"
             }`}
           >
-            {t.id === "songs" ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> : <FileCheck className="h-3.5 w-3.5" aria-hidden />}
+            {t.id === "songs" ? (
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+            ) : t.id === "licenses" ? (
+              <FileCheck className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Cog className="h-3.5 w-3.5" aria-hidden />
+            )}
             {t.label}
             {t.count !== null && t.count > 0 && (
               <span className="rounded-pill bg-white/20 px-1.5 text-[10px] font-bold">{t.count}</span>
@@ -92,8 +100,10 @@ export default function AdminPage() {
       <div className="mt-6">
         {tab === "songs" ? (
           <AdminQueue pending={pending} error={error} setPending={setPending} />
-        ) : (
+        ) : tab === "licenses" ? (
           <AdminLicenses pending={licenses} error={licError} setPending={setLicenses} />
+        ) : (
+          <AdminJobs />
         )}
       </div>
     </div>

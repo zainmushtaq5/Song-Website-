@@ -5,6 +5,7 @@ from app.models.engagement import Download, Follow, Like, Play, PlaySource
 from app.models.playlist import Playlist, PlaylistSong
 from app.models.notification import Notification, NotificationType
 from app.models.license import License, LicenseStatus
+from app.models.job import Job, JobStatus, JobType
 
 __all__ = [
     "Base",
@@ -17,6 +18,9 @@ __all__ = [
     "LicenseType",
     "License",
     "LicenseStatus",
+    "Job",
+    "JobStatus",
+    "JobType",
     "AdminAction",
     "Like",
     "Play",

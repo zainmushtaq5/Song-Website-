@@ -15,6 +15,7 @@ class SongStatus(str, enum.Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    REMOVED = "REMOVED"
 
 
 class LicenseType(str, enum.Enum):

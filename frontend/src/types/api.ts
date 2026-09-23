@@ -74,6 +74,18 @@ export interface ArtistAnalytics {
   top_songs: { id: string; title: string; plays: number; downloads: number; likes: number }[];
 }
 
+export interface JobInfo {
+  id: string;
+  type: "probe_upload" | "license_sweep";
+  status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  payload: Record<string, unknown>;
+  attempts: number;
+  last_error: string | null;
+  run_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
 export interface SongAnalytics {
   song: { id: string; title: string };
   window: number;

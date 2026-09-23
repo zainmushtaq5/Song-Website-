@@ -139,10 +139,6 @@ async def create_song(
     audio_key = f"audio/{song_id}{ext}"
     cover_key = f"covers/{song_id}{cext}"
 
-    from app.utils.audio import probe_duration  # best-effort metadata (FFmpeg if available)
-
-    duration, bitrate, sample_rate = probe_duration(audio_bytes)
-
     genre = await ensure_genre(db, meta.genre)
     song = Song(
         id=song_id,
@@ -153,9 +149,7 @@ async def create_song(
         description=meta.description,
         audio_key=audio_key,
         cover_key=cover_key,
-        duration_sec=duration or 0,
-        bitrate_kbps=bitrate,
-        sample_rate=sample_rate,
+        duration_sec=0,  # probed asynchronously by the worker (probe_upload job)
         file_size_bytes=len(audio_bytes),
         mime_type=audio.content_type,
         download_allowed=meta.download_allowed,
@@ -169,9 +163,15 @@ async def create_song(
     db.add(song)
     await db.flush()
     from app.services.license_service import create_initial_license
+
     await create_initial_license(db, song, meta.license_type.value if meta.license_type else None)
     storage.upload(audio_key, BytesAdapter(audio_bytes), audio.content_type or "application/octet-stream")
     storage.upload(cover_key, BytesAdapter(cover_bytes), cover.content_type or "application/octet-stream")
+    # Move FFmpeg probing off the request thread: enqueue a durable job.
+    from app.models.job import JobType
+    from app.services.job_service import enqueue
+
+    await enqueue(db, JobType.PROBE_UPLOAD, {"song_id": str(song_id), "audio_key": audio_key})
     return song
 
 def _cover_url(song: Song) -> str | None:
@@ -196,6 +196,8 @@ def to_song_out(song: Song) -> SongOut:
         slug=song.slug,
         description=song.description,
         duration_sec=song.duration_sec,
+        bitrate_kbps=song.bitrate_kbps,
+        sample_rate=song.sample_rate,
         play_count=song.play_count,
         download_count=song.download_count,
         like_count=song.like_count,

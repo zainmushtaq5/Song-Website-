@@ -47,6 +47,13 @@ class StorageService:
             with path.open("wb") as f:
                 shutil.copyfileobj(fileobj, f)
 
+    def read_bytes(self, key: str) -> bytes:
+        if self._driver == "r2":
+            assert self._s3 is not None
+            obj = self._s3.get_object(Bucket=settings.STORAGE_BUCKET, Key=key)
+            return obj["Body"].read()
+        return self._local_path(key).read_bytes()
+
     def delete(self, key: str) -> None:
         if self._driver == "r2":
             assert self._s3 is not None

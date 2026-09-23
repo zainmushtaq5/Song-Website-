@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -10,6 +11,13 @@ os.environ.setdefault("LOCAL_STORAGE_DIR", _TMP)
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("REDIS_URL", "")  # in-process limiter for tests
+os.environ.setdefault("JOB_WORKER_ENABLED", "false")  # tests drive job handlers directly
+
+# Windows: match the app's selector-loop policy and make a concrete loop the
+# default for the main thread (pytest-asyncio's get_event_loop path needs one).
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+asyncio.set_event_loop(asyncio.new_event_loop())
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -44,6 +52,13 @@ async def _setup_database():
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
+
+
+@pytest.fixture
+async def session():
+    """Direct DB session on the same engine the app override uses."""
+    async with _TestSession() as s:
+        yield s
 
 
 @pytest.fixture(autouse=True)

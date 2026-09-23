@@ -6,6 +6,7 @@ we fall back to header-based duration parsing for MP3/WAV so uploads still succe
 
 import io
 import shutil
+import struct
 import subprocess
 from functools import lru_cache
 
@@ -42,17 +43,19 @@ def probe_duration(data: bytes) -> DurationMeta:
         except Exception:
             pass  # fall through to header parsing
 
-    duration = _wav_duration(data) or _mp3_duration_estimate(data)
+    duration_meta = _wav_duration(data)
+    if duration_meta is not None:
+        return duration_meta[0], None, duration_meta[1]
+    duration = _mp3_duration_estimate(data)
     return duration, None, None
 
 
-def _wav_duration(data: bytes) -> int | None:
+def _wav_duration(data: bytes) -> tuple[int | None, int | None] | None:
+    """(duration_sec, sample_rate) from RIFF/WAVE headers, or None."""
     try:
         if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
             return None
-        import struct
-
-        byte_rate = None
+        sample_rate = None
         # fmt chunk: bytes 12.. fmt chunk
         pos = 12
         while pos + 8 <= len(data):
@@ -60,9 +63,10 @@ def _wav_duration(data: bytes) -> int | None:
             (chunk_size,) = struct.unpack("<I", data[pos + 4 : pos + 8])
             if chunk_id == b"fmt ":
                 fmt = data[pos + 8 : pos + 8 + min(chunk_size, 16)]
+                sample_rate = struct.unpack("<I", fmt[4:8])[0]
                 byte_rate = struct.unpack("<I", fmt[8:12])[0]
             if chunk_id == b"data":
-                return round(chunk_size / byte_rate) if byte_rate else None
+                return (round(chunk_size / byte_rate) if byte_rate else None), sample_rate
             pos += 8 + chunk_size + (chunk_size % 2)
     except Exception:
         return None
