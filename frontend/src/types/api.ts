@@ -54,12 +54,28 @@ export interface PlaylistDetail extends Omit<PlaylistSummary, "cover_url"> {
   songs: Song[];
 }
 
+export interface AnalyticsSeriesPoint {
+  date: string;
+  plays: number;
+  likes: number;
+  downloads: number;
+}
+
 export interface ArtistAnalytics {
   song_count: number;
   totals: { plays: number; downloads: number; likes: number };
   last_7_days: { plays: number; downloads: number };
   last_30_days: { plays: number; downloads: number };
+  window: number;
+  series: AnalyticsSeriesPoint[];
   top_songs: { id: string; title: string; plays: number; downloads: number; likes: number }[];
+}
+
+export interface SongAnalytics {
+  song: { id: string; title: string };
+  window: number;
+  totals: { plays: number; downloads: number; likes: number };
+  series: AnalyticsSeriesPoint[];
 }
 
 export interface NotificationItem {

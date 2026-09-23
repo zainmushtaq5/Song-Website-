@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -10,11 +12,34 @@ from app.services import analytics_service, follow_service, song_service
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _validated_window(window: int) -> int:
+    if window not in analytics_service.ANALYTICS_WINDOWS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="window must be one of 7, 30, 90",
+        )
+    return window
+
+
 @router.get("/me/analytics")
 async def my_analytics(
-    db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+    window: int = 30,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> dict:
-    return await analytics_service.get_analytics(db, user)
+    _validated_window(window)
+    return await analytics_service.get_analytics(db, user, window)
+
+
+@router.get("/me/analytics/songs/{song_id}")
+async def my_song_analytics(
+    song_id: UUID,
+    window: int = 30,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    _validated_window(window)
+    return await analytics_service.get_song_analytics(db, user, song_id, window)
 
 
 @router.get("/me/following")
