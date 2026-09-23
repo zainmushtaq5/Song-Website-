@@ -1,19 +1,25 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { FileCheck, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AdminLicenses } from "@/components/music/admin-licenses";
 import { AdminQueue } from "@/components/music/admin-queue";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
-import type { Song } from "@/types/api";
+import type { LicenseInfo, Song } from "@/types/api";
+
+type Tab = "songs" | "licenses";
 
 export default function AdminPage() {
   const user = useAuthStore((s) => s.user);
   const [mounted, setMounted] = useState(false);
+  const [tab, setTab] = useState<Tab>("songs");
   const [pending, setPending] = useState<Song[] | null>(null);
+  const [licenses, setLicenses] = useState<LicenseInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [licError, setLicError] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -23,6 +29,12 @@ export default function AdminPage() {
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Failed to load review queue");
         setPending([]);
+      });
+    api<LicenseInfo[]>("/api/admin/licenses?review_status=PENDING")
+      .then(setLicenses)
+      .catch((err: unknown) => {
+        setLicError(err instanceof Error ? err.message : "Failed to load license queue");
+        setLicenses([]);
       });
   }, [user]);
 
@@ -49,5 +61,41 @@ export default function AdminPage() {
     );
   }
 
-  return <AdminQueue pending={pending} error={error} setPending={setPending} />;
+  const tabs: { id: Tab; label: string; count: number | null }[] = [
+    { id: "songs", label: "Song review", count: pending?.length ?? null },
+    { id: "licenses", label: "License review", count: licenses?.length ?? null },
+  ];
+
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <h1 className="text-xl font-extrabold tracking-tight">Admin</h1>
+      <div role="tablist" aria-label="Admin queues" className="mt-4 flex items-center gap-1 rounded-pill border border-line bg-surface p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-semibold transition-colors ${
+              tab === t.id ? "bg-accent text-white" : "text-muted hover:bg-surface-2 hover:text-ink"
+            }`}
+          >
+            {t.id === "songs" ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> : <FileCheck className="h-3.5 w-3.5" aria-hidden />}
+            {t.label}
+            {t.count !== null && t.count > 0 && (
+              <span className="rounded-pill bg-white/20 px-1.5 text-[10px] font-bold">{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6">
+        {tab === "songs" ? (
+          <AdminQueue pending={pending} error={error} setPending={setPending} />
+        ) : (
+          <AdminLicenses pending={licenses} error={licError} setPending={setLicenses} />
+        )}
+      </div>
+    </div>
+  );
 }

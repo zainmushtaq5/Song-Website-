@@ -13,6 +13,9 @@ class NotificationType(str, enum.Enum):
     SONG_APPROVED = "song_approved"
     SONG_REJECTED = "song_rejected"
     NEW_FOLLOWER = "new_follower"
+    LICENSE_APPROVED = "license_approved"
+    LICENSE_REJECTED = "license_rejected"
+    LICENSE_SUSPENDED = "license_suspended"
 
 
 class Notification(Base, UUIDMixin):

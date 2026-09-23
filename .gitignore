@@ -37,3 +37,4 @@ e2e*-out.txt
 probe-out.txt
 live*-out.txt
 force-push*
+*-out.txt

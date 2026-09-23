@@ -28,6 +28,7 @@ class SongOut(BaseModel):
     like_count: int
     download_allowed: bool
     license_type: LicenseType | None = None
+    license_status: str | None = None
     rights_note: str | None = None
     status: SongStatus
     cover_url: str | None = None

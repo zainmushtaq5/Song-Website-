@@ -10,6 +10,10 @@ def _upload(client, auth_headers, admin_headers, title, download_allowed=False):
         data.update({"download_allowed": "true", "license_type": "artist_owned"})
     song = client.post("/api/songs", data=data, files=files, headers=auth_headers).json()
     client.post(f"/api/admin/songs/{song['id']}/approve", headers=admin_headers)
+    if download_allowed:
+        lics = client.get("/api/admin/licenses", headers=admin_headers).json()
+        lic = next(l for l in lics if l["song_id"] == song["id"])
+        client.post(f"/api/admin/licenses/{lic['id']}/approve", headers=admin_headers, json={})
     return song
 
 

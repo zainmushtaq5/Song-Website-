@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CheckCheck, Music4, UserRoundCheck, XCircle } from "lucide-react";
+import { Bell, CheckCheck, FileCheck, FileX, Music4, ShieldBan, UserRoundCheck, XCircle } from "lucide-react";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,9 @@ const ICONS = {
   song_approved: { icon: Music4, tint: "text-green-400" },
   song_rejected: { icon: XCircle, tint: "text-red-400" },
   new_follower: { icon: UserRoundCheck, tint: "text-accent" },
+  license_approved: { icon: FileCheck, tint: "text-green-400" },
+  license_rejected: { icon: FileX, tint: "text-red-400" },
+  license_suspended: { icon: ShieldBan, tint: "text-yellow-400" },
 } as const;
 
 function timeAgo(iso: string): string {

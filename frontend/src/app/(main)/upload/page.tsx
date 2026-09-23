@@ -5,6 +5,7 @@ import { Music4, UploadCloud } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AnalyticsPanel } from "@/components/analytics/analytics-panel";
+import { LicenseEditor } from "@/components/music/license-editor";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Textarea } from "@/components/ui/input";
@@ -24,6 +25,9 @@ const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-yellow-500/15 text-yellow-300",
   APPROVED: "bg-green-500/15 text-green-300",
   REJECTED: "bg-red-500/15 text-red-300",
+  EXPIRED: "bg-orange-500/15 text-orange-300",
+  SUSPENDED: "bg-orange-500/15 text-orange-300",
+  REMOVED: "bg-red-500/15 text-red-300",
 };
 
 export default function UploadPage() {
@@ -42,6 +46,7 @@ export default function UploadPage() {
   });
   const [audio, setAudio] = useState<File | null>(null);
   const [cover, setCover] = useState<File | null>(null);
+  const [licTick, setLicTick] = useState(0);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -50,7 +55,7 @@ export default function UploadPage() {
         .then(setUploads)
         .catch(() => setUploads([]));
     }
-  }, [user, busy]);
+  }, [user, busy, licTick]);
 
   if (!mounted) return null;
 
@@ -100,7 +105,7 @@ export default function UploadPage() {
     }
   }
 
-  return UploadView({ form, setForm, setAudio, setCover, busy, fileError, uploads, onSubmit });
+  return UploadView({ form, setForm, setAudio, setCover, busy, fileError, uploads, onSubmit, onLicenseSaved: () => setLicTick((t) => t + 1) });
 }
 
 function UploadView(props: {
@@ -112,6 +117,7 @@ function UploadView(props: {
   fileError: string | null;
   uploads: Song[] | null;
   onSubmit: (e: React.FormEvent) => void;
+  onLicenseSaved: () => void;
 }) {
   const { form, busy, fileError, uploads } = props;
   const setForm = props.setForm;
@@ -240,19 +246,32 @@ function UploadView(props: {
           {uploads.map((s) => (
             <li
               key={s.id}
-              className="flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3"
+              className="flex flex-col gap-2 rounded-card border border-line bg-surface px-4 py-3"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{s.title}</p>
-                {s.status === "REJECTED" && s.rejection_reason && (
-                  <p className="truncate text-xs text-red-300/80" title={s.rejection_reason ?? ""}>
-                    {s.rejection_reason}
-                  </p>
-                )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{s.title}</p>
+                  {s.status === "REJECTED" && s.rejection_reason && (
+                    <p className="truncate text-xs text-red-300/80" title={s.rejection_reason ?? ""}>
+                      {s.rejection_reason}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {s.license_status && (
+                    <span
+                      className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[s.license_status] ?? ""}`}
+                      title="License status"
+                    >
+                      License: {s.license_status}
+                    </span>
+                  )}
+                  <span className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[s.status]}`}>
+                    {s.status}
+                  </span>
+                </div>
               </div>
-              <span className={`shrink-0 rounded-pill px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[s.status]}`}>
-                {s.status}
-              </span>
+              <LicenseEditor songId={s.id} initialStatus={s.license_status} onSaved={props.onLicenseSaved} />
             </li>
           ))}
         </ul>

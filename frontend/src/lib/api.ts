@@ -27,7 +27,7 @@ export function configureAuth(
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   json?: unknown;
   formData?: FormData;
   auth?: boolean;

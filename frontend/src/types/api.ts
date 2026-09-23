@@ -10,6 +10,8 @@ export interface User {
 
 export type SongStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type LicenseStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "SUSPENDED" | "REMOVED";
+
 export type LicenseType = "royalty_free" | "artist_owned" | "cc_by" | "other";
 
 export interface Song {
@@ -23,6 +25,7 @@ export interface Song {
   like_count: number;
   download_allowed: boolean;
   license_type: LicenseType | null;
+  license_status: LicenseStatus | null;
   rights_note: string | null;
   status: SongStatus;
   cover_url: string | null;
@@ -78,9 +81,32 @@ export interface SongAnalytics {
   series: AnalyticsSeriesPoint[];
 }
 
+export interface LicenseInfo {
+  id: string;
+  song_id: string;
+  song_title: string | null;
+  artist_name: string | null;
+  status: LicenseStatus;
+  license_type: LicenseType | null;
+  rights_holder: string | null;
+  proof_reference: string | null;
+  effective_from: string | null;
+  effective_until: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  action_reason: string | null;
+  created_at: string;
+}
+
 export interface NotificationItem {
   id: string;
-  type: "song_approved" | "song_rejected" | "new_follower";
+  type:
+    | "song_approved"
+    | "song_rejected"
+    | "new_follower"
+    | "license_approved"
+    | "license_rejected"
+    | "license_suspended";
   message: string;
   is_read: boolean;
   created_at: string;

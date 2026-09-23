@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
+from app.models.license import License, LicenseStatus
 from app.models.user import Artist
 
 
@@ -72,9 +73,22 @@ class Song(Base, UUIDMixin, TimestampMixin):
 
     artist: Mapped[Artist] = relationship(lazy="joined")
     genre: Mapped[Genre | None] = relationship(lazy="joined")
+    license: Mapped[License | None] = relationship(
+        lazy="joined", uselist=False, foreign_keys=[License.song_id]
+    )
 
     def is_downloadable(self) -> bool:
         return self.status == SongStatus.APPROVED and self.download_allowed
+
+    def license_effective(self, now: datetime) -> bool:
+        """License gate: APPROVED and not past its expiry date."""
+        lic = self.license
+        if lic is None:
+            return False
+        status = lic.status
+        if status == LicenseStatus.APPROVED and lic.is_expired(now):
+            status = LicenseStatus.EXPIRED
+        return status == LicenseStatus.APPROVED
 
 
 class AdminAction(Base, UUIDMixin):

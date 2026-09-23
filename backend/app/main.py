@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import admin, artists, auth, follows, notifications, playlists, search, songs, storage_routes, users
+from app.api.routes import admin, artists, auth, follows, licenses, notifications, playlists, search, songs, storage_routes, users
 from app.core.config import settings
 
 
@@ -49,12 +49,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(songs.router, prefix="/api")
+app.include_router(licenses.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(artists.router, prefix="/api")
 app.include_router(follows.router, prefix="/api")

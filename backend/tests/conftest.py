@@ -126,6 +126,16 @@ def approved_song(client: TestClient, auth_headers: dict, admin_headers: dict) -
     song_id = r.json()["id"]
     r = client.post(f"/api/admin/songs/{song_id}/approve", headers=admin_headers)
     assert r.status_code == 200, r.text
+    _approve_license(client, admin_headers, song_id)
     r = client.get(f"/api/songs/{song_id}")
     assert r.status_code == 200, r.text
     return r.json()
+
+
+def _approve_license(client: TestClient, admin_headers: dict, song_id: str) -> None:
+    """Approve the song's PENDING license (Phase 3: downloads need an approved license)."""
+    lics = client.get("/api/admin/licenses", headers=admin_headers).json()
+    lic = next((l for l in lics if l["song_id"] == song_id), None)
+    assert lic is not None, f"no license for song {song_id}"
+    r = client.post(f"/api/admin/licenses/{lic['id']}/approve", headers=admin_headers, json={})
+    assert r.status_code == 200, r.text

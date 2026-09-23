@@ -168,6 +168,8 @@ async def create_song(
     song.genre = genre
     db.add(song)
     await db.flush()
+    from app.services.license_service import create_initial_license
+    await create_initial_license(db, song, meta.license_type.value if meta.license_type else None)
     storage.upload(audio_key, BytesAdapter(audio_bytes), audio.content_type or "application/octet-stream")
     storage.upload(cover_key, BytesAdapter(cover_bytes), cover.content_type or "application/octet-stream")
     return song
@@ -181,6 +183,8 @@ def _audio_url(song: Song) -> str | None:
 
 
 def to_song_out(song: Song) -> SongOut:
+    from app.services.license_service import license_status_now
+
     return SongOut(
         cover_url=_cover_url(song),
         audio_url=_audio_url(song),
@@ -201,6 +205,7 @@ def to_song_out(song: Song) -> SongOut:
         status=song.status,
         artist_id=song.artist_id,
         created_at=song.created_at,
+        license_status=license_status_now(song.license),
     )
 
 
@@ -282,6 +287,10 @@ async def record_download(db: AsyncSession, request: Request, song_id, user: Use
     song = await get_public_song(db, song_id)
     if not song.download_allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Downloads not allowed for this song")
+    from app.models.license import LicenseStatus
+    from app.services.license_service import license_status_now
+    if license_status_now(song.license) != LicenseStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="License is not approved for downloads")
     db.add(Download(song_id=song.id, user_id=user.id))
     song.download_count += 1
     await db.flush()
