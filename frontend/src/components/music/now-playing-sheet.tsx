@@ -107,7 +107,7 @@ export function NowPlayingSheet({ song, total, isPlaying, open, onClose }: NowPl
             onDragEnd={(_, info) => {
               if (info.offset.y > 120 || info.velocity.y > 600) onClose();
             }}
-            className="relative mx-auto max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-surface px-5 pb-8 pt-3 shadow-2xl"
+            className="relative mx-auto max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-line bg-surface px-5 pb-[calc(2rem+var(--safe-b))] pt-3 shadow-2xl"
           >
             {/* Drag handle */}
             <div aria-hidden className="mx-auto mb-2 h-1.5 w-12 rounded-pill bg-line" />

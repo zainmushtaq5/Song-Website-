@@ -42,7 +42,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
       animate={{ y: 0, opacity: 1 }}
       exit={reduced ? undefined : { y: 90, opacity: 0 }}
       transition={{ type: "spring", stiffness: 320, damping: 30 }}
-      className="fixed inset-x-0 bottom-14 z-40 border-t border-line bg-surface/95 backdrop-blur sm:bottom-0"
+      className="fixed inset-x-0 bottom-[calc(3.5rem+var(--safe-b))] z-40 border-t border-line bg-surface/95 backdrop-blur sm:bottom-0 sm:pb-[var(--safe-b)]"
     >
       {/* cumulative progress line */}
       <div aria-hidden className="h-0.5 w-full bg-line/60">

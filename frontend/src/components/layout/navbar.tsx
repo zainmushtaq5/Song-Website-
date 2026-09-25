@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { InstallAppButton } from "@/components/pwa/install-prompt";
 import { logout, useAuthStore } from "@/stores/auth";
 
 const links = [
@@ -24,7 +25,7 @@ export function Navbar() {
   const isAdmin = mounted && user?.role === "ADMIN";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-bg/85 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-line bg-bg/85 pt-[var(--safe-t)] backdrop-blur">
       <nav className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-bold tracking-tight" aria-label="Songs home">
           <span className="flex h-8 w-8 items-center justify-center rounded-card bg-accent text-white">
@@ -69,6 +70,7 @@ export function Navbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <InstallAppButton />
           {mounted && user && <NotificationBell />}
           {mounted && user ? (
             <>
@@ -132,7 +134,7 @@ export function MobileNav() {
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg/95 backdrop-blur sm:hidden"
       aria-label="Mobile navigation"
     >
-      <div className="grid h-14 grid-cols-4">
+      <div className="grid h-[calc(3.5rem+var(--safe-b))] grid-cols-4 pb-[var(--safe-b)]">
         {items.map((item) => (
           <Link
             key={item.href}

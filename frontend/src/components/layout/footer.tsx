@@ -172,8 +172,8 @@ export function Footer() {
         </div>
 
         {/* ── Bottom bar ──────────────────────────────────── */}
-        {/* pb clears the fixed player + mobile nav (112px on mobile, ~68px desktop) */}
-        <div className="flex flex-col items-center justify-between gap-2 border-t border-line/40 pb-28 pt-5 text-[11px] text-muted sm:flex-row sm:pb-20">
+        {/* pb clears the fixed player + mobile nav (112px on mobile, ~68px desktop) + safe area */}
+        <div className="flex flex-col items-center justify-between gap-2 border-t border-line/40 pb-[calc(7rem+var(--safe-b))] pt-5 text-[11px] text-muted sm:flex-row sm:pb-[calc(5rem+var(--safe-b))]">
           <p>© {year} Songs. All rights reserved.</p>
           <p>
             Made for independent musicians and the people who listen.
