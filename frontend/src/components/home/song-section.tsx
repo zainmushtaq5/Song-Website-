@@ -3,6 +3,7 @@
 import { Flame, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { StaggerGroup, StaggerItem } from "@/components/motion/reveal";
 import { SongCard } from "@/components/music/song-card";
 import { EmptyState, SkeletonCard } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
@@ -113,10 +114,15 @@ function SectionBody({
     );
   }
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+    <StaggerGroup
+      className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6"
+      stagger={0.05}
+    >
       {songs.map((song) => (
-        <SongCard key={song.id} song={song} queue={songs} />
+        <StaggerItem key={song.id}>
+          <SongCard song={song} queue={songs} />
+        </StaggerItem>
       ))}
-    </div>
+    </StaggerGroup>
   );
 }

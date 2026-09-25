@@ -1,10 +1,14 @@
 "use client";
 
+import { motion } from "motion/react";
 import Link from "next/link";
-import { Music4, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { ChevronUp, Music4, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
+import { useState } from "react";
 
+import { NowPlayingSheet } from "@/components/music/now-playing-sheet";
 import { audioElementRef } from "@/components/music/player";
 import { Button } from "@/components/ui/button";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { resolveMediaUrl } from "@/lib/api-url";
 import { formatDuration } from "@/lib/format";
 import { usePlayerStore } from "@/stores/player";
@@ -21,22 +25,61 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
   const volume = usePlayerStore((s) => s.volume);
   const muted = usePlayerStore((s) => s.muted);
   const repeat = usePlayerStore((s) => s.repeat);
+  const reduced = useReducedMotion();
+  const [expanded, setExpanded] = useState(false);
+
+  // Fall back to the placeholder when the (dynamic) cover URL fails to load.
+  const coverSrc = song.cover_url ? resolveMediaUrl(song.cover_url) : null;
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const showCover = Boolean(coverSrc) && coverSrc !== failedCover;
+
+  const progress = total > 0 ? Math.min(1, position / total) : 0;
 
   return (
-    <div className="fixed inset-x-0 bottom-14 z-40 border-t border-line bg-surface/95 backdrop-blur sm:bottom-0">
+    <>
+    <motion.div
+      initial={reduced ? false : { y: 90, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={reduced ? undefined : { y: 90, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 320, damping: 30 }}
+      className="fixed inset-x-0 bottom-14 z-40 border-t border-line bg-surface/95 backdrop-blur sm:bottom-0"
+    >
+      {/* cumulative progress line */}
+      <div aria-hidden className="h-0.5 w-full bg-line/60">
+        <div
+          className="h-full bg-accent transition-[width] duration-150 ease-linear"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-3 py-2.5 sm:px-6 sm:py-3">
         {/* Track info */}
         <div className="flex min-w-0 items-center gap-2.5 sm:w-56 sm:shrink-0">
-          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-card bg-surface-2">
-            {song.cover_url ? (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            aria-label="Open now playing"
+            className="group relative h-10 w-10 shrink-0 overflow-hidden rounded-card bg-surface-2 transition-transform duration-150 hover:scale-105 active:scale-95"
+          >
+            {showCover ? (
               // eslint-disable-next-line @next/next/no-img-element -- dynamic signed URL
-              <img src={resolveMediaUrl(song.cover_url) ?? undefined} alt="" className="h-full w-full object-cover" />
+              <img
+                src={coverSrc ?? undefined}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={() => setFailedCover(coverSrc)}
+              />
             ) : (
               <span className="flex h-full w-full items-center justify-center text-accent" aria-hidden>
                 <Music4 className="h-4 w-4" />
               </span>
             )}
-          </div>
+            <span
+              aria-hidden
+              className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+            >
+              <ChevronUp className="h-4 w-4 text-white" />
+            </span>
+          </button>
           <div className="min-w-0">
             <Link
               href={`/song/${song.slug}`}
@@ -71,6 +114,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().toggle()}
             ariaLabel={isPlaying ? "Pause" : "Play"}
+            className="transition-transform duration-150 active:scale-90"
           >
             {isPlaying ? (
               <Pause className="h-5 w-5 fill-current" aria-hidden />
@@ -151,7 +195,27 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             className="h-1 w-full cursor-pointer accent-[var(--color-accent)]"
           />
         </div>
+
+        {/* Expand to the Now Playing sheet */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setExpanded(true)}
+          ariaLabel="Expand player"
+          className="shrink-0"
+        >
+          <ChevronUp className="h-4 w-4" aria-hidden />
+        </Button>
       </div>
-    </div>
+    </motion.div>
+
+    <NowPlayingSheet
+      song={song}
+      total={total}
+      isPlaying={isPlaying}
+      open={expanded}
+      onClose={() => setExpanded(false)}
+    />
+    </>
   );
 }

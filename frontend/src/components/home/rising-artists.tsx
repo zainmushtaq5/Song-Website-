@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Mic2, Music4, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Reveal } from "@/components/motion/reveal";
 import { api } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/api-url";
 import type { ArtistPublic } from "@/types/api";
@@ -60,15 +61,17 @@ export function RisingArtists() {
   return (
     <section className="mt-20 sm:mt-28">
       {/* Section header */}
-      <div className="mb-8">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-accent">
-          <Users className="h-4 w-4" aria-hidden />
-          Rising artists
-        </p>
-        <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-          Artists to watch
-        </h2>
-      </div>
+      <Reveal>
+        <div className="mb-8">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-accent">
+            <Users className="h-4 w-4" aria-hidden />
+            Rising artists
+          </p>
+          <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+            Artists to watch
+          </h2>
+        </div>
+      </Reveal>
 
       {/* Scrollable row */}
       <div

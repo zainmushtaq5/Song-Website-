@@ -1,5 +1,7 @@
 import { Download, Headphones, Music, Users } from "lucide-react";
 
+import { StaggerGroup, StaggerItem } from "@/components/motion/reveal";
+
 const features = [
   {
     icon: Music,
@@ -45,24 +47,25 @@ export function WhyPlatform() {
       </div>
 
       {/* Card grid — 1 col mobile, 2 col tablet, 4 col desktop */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StaggerGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" stagger={0.08}>
         {features.map((f) => (
-          <article
-            key={f.title}
-            className="group rounded-2xl border border-line/60 bg-surface/50 p-6 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10"
-          >
-            {/* Icon circle */}
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors duration-300 group-hover:bg-accent/25">
-              <f.icon className="h-5 w-5" aria-hidden />
-            </div>
+          <StaggerItem key={f.title}>
+            <article
+              className="group h-full rounded-2xl border border-line/60 bg-surface/50 p-6 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10"
+            >
+              {/* Icon circle */}
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent transition-colors duration-300 group-hover:bg-accent/25">
+                <f.icon className="h-5 w-5" aria-hidden />
+              </div>
 
-            <h3 className="text-sm font-bold leading-snug">{f.title}</h3>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">
-              {f.description}
-            </p>
-          </article>
+              <h3 className="text-sm font-bold leading-snug">{f.title}</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">
+                {f.description}
+              </p>
+            </article>
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerGroup>
     </section>
   );
 }
