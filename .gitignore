@@ -4,12 +4,9 @@ __pycache__/
 .pytest_cache/
 backend/.venv/
 
-# Local dev data (SQLite + uploaded test media)
-backend/.smoke.db
-backend/songs-dev.db
+# Local dev data (SQLite DBs + uploaded test media)
+backend/*.db
 backend/.storage/
-backend/backend-console.log
-backend/backend-error.log
 
 # Node / Next.js
 node_modules/
@@ -23,18 +20,16 @@ out/
 # Logs & temp build artifacts
 *.log
 *.done
-frontend/tsc.log
-frontend/build.log
 backend/pytest-*.txt
+*-out.txt
 
 # E2E screenshots (regenerable via e2e/*.mjs scripts)
 frontend/e2e/screenshots/
 
 # Phase 3 dev artifacts
-*.test.db
 build-out*.txt
 e2e*-out.txt
 probe-out.txt
 live*-out.txt
 force-push*
-*-out.txt
+backend/app.db

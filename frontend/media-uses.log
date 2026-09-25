@@ -1,8 +1,0 @@
-components\music\admin-queue.tsx:91:              {song.cover_url && (
-components\music\admin-queue.tsx:94:                  src={resolveMediaUrl(song.cover_url) ?? undefined}
-components\music\player-bar.tsx:31:            {song.cover_url ? (
-components\music\player-bar.tsx:33:              <img src={resolveMediaUrl(song.cover_url) ?? undefined} alt="" className="h-full w-full object-cover" />
-components\music\song-card.tsx:31:        {song.cover_url ? (
-components\music\song-card.tsx:34:            src={resolveMediaUrl(song.cover_url) ?? undefined}
-components\music\song-detail.tsx:30:          {song.cover_url ? (
-components\music\song-detail.tsx:33:              src={resolveMediaUrl(song.cover_url) ?? undefined}

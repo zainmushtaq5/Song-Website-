@@ -29,10 +29,20 @@ async def get_artist(
     artist = result.scalar_one_or_none()
     if artist is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artist not found")
-    songs = (
-        await song_service.list_public_songs(db, sort="recent", page=1, page_size=50)
-    )
-    own = [s for s in songs if s.artist_id == artist.id]
+    from app.models.song import Song
+
+    own = (
+        await db.execute(
+            select(Song)
+            .where(
+                Song.artist_id == artist.id,
+                Song.status == SongStatus.APPROVED,
+                Song.deleted_at.is_(None),
+            )
+            .order_by(Song.created_at.desc())
+            .limit(50)
+        )
+    ).scalars().all()
     return {
         "id": str(artist.id),
         "name": artist.name,

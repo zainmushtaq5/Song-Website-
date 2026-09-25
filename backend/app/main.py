@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import admin, artists, auth, follows, jobs, licenses, notifications, playlists, search, songs, storage_routes, users
+from app.api.routes import admin, artists, auth, follows, jobs, licenses, notifications, playlists, recommendations, search, songs, storage_routes, users
 from app.core.config import settings
 
 
@@ -71,6 +71,7 @@ app.include_router(follows.router, prefix="/api")
 app.include_router(playlists.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
+app.include_router(recommendations.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(jobs.router, prefix="/api")
 if settings.STORAGE_DRIVER == "local":
