@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { NowPlayingSheet } from "@/components/music/now-playing-sheet";
 import { audioElementRef } from "@/components/music/player";
+import { Visualizer } from "@/components/music/visualizer";
 import { Button } from "@/components/ui/button";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { resolveMediaUrl } from "@/lib/api-url";
@@ -80,6 +81,14 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
               <ChevronUp className="h-4 w-4 text-white" />
             </span>
           </button>
+          {/* Compact level meter so the bar reads as "playing", not just "loaded". */}
+          <Visualizer
+            active={isPlaying}
+            bars={4}
+            height={26}
+            mirror
+            className="w-5 shrink-0 opacity-90"
+          />
           <div className="min-w-0">
             <Link
               href={`/song/${song.slug}`}
