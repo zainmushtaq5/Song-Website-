@@ -1,8 +1,7 @@
 import { Music4, Upload } from "lucide-react";
 
+import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { Button } from "@/components/ui/button";
-
-const waveBars = [14, 26, 40, 62, 88, 72, 96, 54, 78, 46, 30, 58, 84, 40, 20, 48, 68, 34, 22, 12];
 
 export function Hero() {
   return (
@@ -21,28 +20,13 @@ export function Hero() {
         aria-hidden
         className="bg-dot-grid absolute inset-0 opacity-70 [mask-image:radial-gradient(ellipse_at_center,black_25%,transparent_75%)]"
       />
-      {/* oversized waveform, very low contrast */}
-      <svg
+      {/* 3D layer (desktop/tablet only) + the flat waveform it replaces */}
+      <HeroBackdrop />
+      {/* keeps the headline readable over the animated layer */}
+      <div
         aria-hidden
-        role="presentation"
-        width="340"
-        height="170"
-        viewBox="0 0 340 170"
-        className="absolute right-10 top-1/2 hidden -translate-y-1/2 opacity-40 lg:block"
-      >
-        {waveBars.map((h, i) => (
-          <rect
-            key={i}
-            x={i * 17}
-            y={(170 - h * 1.6) / 2}
-            width="7"
-            height={h * 1.6}
-            rx="3.5"
-            className="fill-accent"
-            opacity={0.15 + (h / 96) * 0.5}
-          />
-        ))}
-      </svg>
+        className="absolute inset-0 bg-gradient-to-r from-bg/85 via-bg/30 to-transparent"
+      />
 
       {/* --- content --- */}
       <div className="relative z-10 max-w-xl px-6 py-16 sm:px-12 sm:py-24 lg:py-28">

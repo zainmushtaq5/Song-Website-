@@ -16,6 +16,8 @@
  *
  * Run: node e2e/visualizer-screens.mjs [frontend-url] [backend-url]
  */
+import zlib from "node:zlib";
+
 import { chromium } from "playwright";
 
 const FRONTEND = process.argv[2] ?? "http://localhost:3001";
@@ -81,7 +83,58 @@ function toneWav({ seconds = 20, freq = TONE_HZ, rate = 44100, amp = 0.7, tremol
   return Buffer.concat([h, data]);
 }
 
-const png = Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n", "latin1"), Buffer.alloc(4000)]);
+/**
+ * A real, decodable PNG (RGB, no compression-filter tricks): 8-bit truecolour
+ * with one deflate block per scanline. The cover here used to be a PNG
+ * signature followed by zero bytes, which the API happily serves as image/png
+ * but no browser can decode — `naturalWidth` stayed 0, so any suite that picked
+ * this upload as its sample song failed a check that was really about the
+ * fixture.
+ */
+function pngCover(size = 96, rgb = [0x8b, 0x5c, 0xf6]) {
+  const crcTable = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crcTable[n] = c >>> 0;
+  }
+  const crc32 = (buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, payload) => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(payload.length, 0);
+    head.write(type, 4, "latin1");
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), payload])), 0);
+    return Buffer.concat([head, payload, crc]);
+  };
+  // one filter byte (0 = None) + RGB triple per pixel
+  const raw = Buffer.alloc(size * (size * 3 + 1));
+  for (let y = 0; y < size; y++) {
+    const row = y * (size * 3 + 1);
+    raw[row] = 0;
+    for (let x = 0; x < size; x++) {
+      const at = row + 1 + x * 3;
+      raw[at] = rgb[0];
+      raw[at + 1] = rgb[1];
+      raw[at + 2] = rgb[2];
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // truecolour
+  return Buffer.concat([
+    Buffer.from("\x89PNG\r\n\x1a\n", "latin1"),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
 
 function multipartUpload({ title, wav }) {
   const boundary = "----viz";
@@ -103,7 +156,7 @@ function multipartUpload({ title, wav }) {
       "latin1",
     ),
   );
-  p.push(png, Buffer.from("\r\n", "latin1"));
+  p.push(pngCover(), Buffer.from("\r\n", "latin1"));
   p.push(Buffer.from(`--${boundary}--\r\n`, "latin1"));
   return { boundary, body: Buffer.concat(p) };
 }
