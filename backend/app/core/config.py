@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,9 +13,35 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3100"]
 
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: any) -> list[str]:
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, (list, tuple)):
+            return [str(i).strip() for i in v if str(i).strip()]
+        return ["*"]
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://songs:songs@localhost:5432/songs"
     AUTO_CREATE_TABLES: bool = False  # dev convenience; production uses Alembic
+
+    @property
+    def async_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if "sslmode=require" in url:
+            url = url.replace("sslmode=require", "ssl=require")
+        return url
 
     # JWT
     JWT_SECRET: str = "dev-secret-change-me"
