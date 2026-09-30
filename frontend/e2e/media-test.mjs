@@ -1,27 +1,174 @@
 /**
  * E2E: signed-media URL resolution.
- * Loads the song detail page in a real browser and verifies:
+ * Uploads a song with genuinely decodable media (a real PNG cover and a real PCM
+ * WAV tone), approves it as the admin, then loads its detail page in a real browser
+ * and verifies:
  *  1. The cover <img> src points at the BACKEND origin (:8000), not the frontend.
  *  2. The image actually loads (naturalWidth > 0 => HTTP 200 from /media).
  *  3. Clicking play sets the <audio> src to the backend origin.
- *  4. No /media request is ever made to the frontend origin; all /media requests
- *     to the backend return 200.
+ *  4. The audio stream actually decodes (readyState > 0, no MediaError).
+ *  5. No /media request is ever made to the frontend origin; all /media requests
+ *     to the backend return 200/206.
+ *
+ * The suite creates its own fixture on purpose: other suites upload placeholder
+ * bytes that no decoder accepts, and the newest feed song is not guaranteed to be
+ * playable. Media the browser rejects proves nothing about URL signing.
  *
  * Run: node e2e/media-test.mjs [frontend-url] [backend-url]
  */
+import zlib from "node:zlib";
+
 import { chromium } from "playwright";
 
 const FRONTEND = process.argv[2] ?? "http://localhost:3000";
 const BACKEND = process.argv[3] ?? "http://localhost:8000";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin-smoke@smoketest.example.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "password123";
+const STAMP = String(Date.now()).slice(-6);
 
-const slug = await fetch(`${BACKEND}/api/songs`)
-  .then((r) => r.json())
-  .then((songs) => songs[0]?.slug);
+// ── fixture: an approved song whose media the browser can really decode ───────
+const admin = await request("/api/auth/login", {
+  method: "POST",
+  body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+});
+if (admin.status !== 200) {
+  console.log(`FAIL: admin login -> ${admin.status} ${admin.text.slice(0, 120)}`);
+  process.exit(1);
+}
+
+const artist = await request("/api/auth/register", {
+  method: "POST",
+  body: {
+    email: `media-fixture-${STAMP}@smoketest.example.com`,
+    username: `mediafix_${STAMP}`,
+    password: "password123",
+    is_artist: true,
+  },
+});
+if (artist.status !== 201) {
+  console.log(`FAIL: artist register -> ${artist.status} ${artist.text.slice(0, 120)}`);
+  process.exit(1);
+}
+
+const form = new FormData();
+form.append("title", `Media Fixture ${STAMP}`);
+form.append("description", "decodable media fixture for the signed-URL suite");
+form.append("genre", "Ambient");
+form.append("download_allowed", "false");
+form.append("audio", new Blob([toneWav()], { type: "audio/wav" }), "tone.wav");
+form.append("cover", new Blob([pngCover()], { type: "image/png" }), "cover.png");
+const uploaded = await request("/api/songs", {
+  token: artist.json.access_token,
+  method: "POST",
+  form,
+});
+if (uploaded.status !== 201) {
+  console.log(`FAIL: upload -> ${uploaded.status} ${uploaded.text.slice(0, 160)}`);
+  process.exit(1);
+}
+const approved = await request(`/api/admin/songs/${uploaded.json.id}/approve`, {
+  token: admin.json.access_token,
+  method: "POST",
+});
+if (approved.status !== 200) {
+  console.log(`FAIL: approve -> ${approved.status} ${approved.text.slice(0, 160)}`);
+  process.exit(1);
+}
+
+const slug = uploaded.json.slug;
 if (!slug) {
-  console.log("FAIL: no approved song found on the backend feed");
+  console.log("FAIL: the fixture came back without a slug");
   process.exit(1);
 }
 console.log(`Testing song page: ${FRONTEND}/song/${slug}`);
+
+
+/** A real, decodable PNG (truecolour, deflate-compressed scanlines). */
+function pngCover(size = 96) {
+  const raw = Buffer.alloc((size * 3 + 1) * size);
+  for (let y = 0; y < size; y++) {
+    const row = y * (size * 3 + 1);
+    for (let x = 0; x < size; x++) {
+      raw[row + 1 + x * 3] = 0x8b;
+      raw[row + 1 + x * 3 + 1] = 0x5c;
+      raw[row + 1 + x * 3 + 2] = 0xf6;
+    }
+  }
+  const table = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  const crc32 = (buf) => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = table[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(data.length, 0);
+    head.write(type, 4, "latin1");
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([Buffer.from(type, "latin1"), data])), 0);
+    return Buffer.concat([head, data, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type: truecolour
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw, { level: 6 })),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+/** A real mono WAV tone that Chromium can decode and stream. */
+function toneWav({ seconds = 4, freq = 320, rate = 8000 } = {}) {
+  const frames = Buffer.alloc(seconds * rate * 2);
+  for (let i = 0; i < seconds * rate; i++) {
+    frames.writeInt16LE(Math.round(12000 * Math.sin((2 * Math.PI * freq * i) / rate)), i * 2);
+  }
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "latin1");
+  header.writeUInt32LE(36 + frames.length, 4);
+  header.write("WAVE", 8, "latin1");
+  header.write("fmt ", 12, "latin1");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "latin1");
+  header.writeUInt32LE(frames.length, 40);
+  return Buffer.concat([header, frames]);
+}
+
+async function request(path, { token, method = "GET", body, form } = {}) {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let payload;
+  if (form) payload = form;
+  else if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
+  const resp = await fetch(`${BACKEND}${path}`, { method, headers, body: payload });
+  const text = await resp.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    /* non-JSON body */
+  }
+  return { status: resp.status, json, text };
+}
+
 
 const results = [];
 function check(label, cond, extra = "") {
