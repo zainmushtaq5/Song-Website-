@@ -6,7 +6,10 @@ backend/.venv/
 
 # Local dev data (SQLite DBs + uploaded test media)
 backend/*.db
-backend/.storage/
+!backend/app.db
+backend/.storage/*
+!backend/.storage/covers/
+
 
 # Node / Next.js
 node_modules/
@@ -32,4 +35,4 @@ e2e*-out.txt
 probe-out.txt
 live*-out.txt
 force-push*
-backend/app.db
+

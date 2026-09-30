@@ -22,7 +22,7 @@ _windows: dict[str, deque[float]] = defaultdict(deque)
 LIMITS: dict[str, tuple[int, int]] = {
     "login": (30, 60),
     "register": (30, 3600),
-    "upload": (30, 3600),
+    "upload": (1000, 3600),
     "download": (60, 3600),
     "search": (120, 60),
     "play": (240, 60),

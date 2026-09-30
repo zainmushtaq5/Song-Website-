@@ -22,7 +22,7 @@ async def search(
                 "id": str(s.id),
                 "title": s.title,
                 "slug": s.slug,
-                "cover_url": None,
+                "cover_url": song_service.cover_url(s.cover_key) if s.cover_key else None,
                 "duration_sec": s.duration_sec,
                 "play_count": s.play_count,
                 "like_count": s.like_count,
