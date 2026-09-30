@@ -469,6 +469,39 @@ await page.waitForTimeout(800);
 const titleAfter = await page.locator(`${DIALOG} a[href^="/song/"]`).first().innerText();
 check("picking an up-next track switches the song", titleBefore !== titleAfter, `${titleBefore} -> ${titleAfter}`);
 
+/**
+ * Wait until the clock is demonstrably advancing on the loaded track.
+ *
+ * Clicking an up-next row swaps the <audio> src, so the element spends a moment
+ * re-loading metadata; a seek issued inside that window is discarded once the
+ * new resource lands, which showed up as the ArrowRight check reading the clock
+ * restart near 0 (1.3 -> 0.3) on a slow first range fetch.
+ */
+async function waitForStablePlayback(timeout = 5000) {
+  const deadline = Date.now() + timeout;
+  let previous = -1;
+  let state = await audioState();
+  while (Date.now() < deadline) {
+    state = await audioState();
+    const time = state?.currentTime ?? 0;
+    if (state && state.readyState >= 2 && !state.paused && time > 0.5 && time > previous) return state;
+    previous = time;
+    await page.waitForTimeout(200);
+  }
+  return state;
+}
+
+/** Sample until a pending seek lands, so the check measures the seek, not the network. */
+async function waitForSeek(target, timeout = 2000) {
+  const deadline = Date.now() + timeout;
+  let state = await audioState();
+  while (Date.now() < deadline && (state?.currentTime ?? 0) < target) {
+    await page.waitForTimeout(150);
+    state = await audioState();
+  }
+  return state;
+}
+
 // keyboard shortcuts
 const beforeSpace = await audioState();
 await page.keyboard.press("Space");
@@ -480,12 +513,10 @@ check(
   JSON.stringify({ before: beforeSpace?.paused, after: afterSpace?.paused }),
 );
 await page.keyboard.press("Space");
-await page.waitForTimeout(400);
-const resumed = await audioState();
+const resumed = await waitForStablePlayback();
 const seekFrom = resumed?.currentTime ?? 0;
 await page.keyboard.press("ArrowRight");
-await page.waitForTimeout(350);
-const seeked = await audioState();
+const seeked = await waitForSeek(seekFrom + 9);
 check(
   "ArrowRight seeks ~10s forward",
   (seeked?.currentTime ?? 0) - seekFrom >= 9 && (seeked?.currentTime ?? 0) - seekFrom <= 12,
