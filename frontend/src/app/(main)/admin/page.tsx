@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { AdminJobs } from "@/components/music/admin-jobs";
 import { AdminLicenses } from "@/components/music/admin-licenses";
-import { AdminQueue } from "@/components/music/admin-queue";
+import { AdminQueue, type SongFilter } from "@/components/music/admin-queue";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
@@ -17,20 +17,33 @@ export default function AdminPage() {
   const user = useAuthStore((s) => s.user);
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<Tab>("songs");
-  const [pending, setPending] = useState<Song[] | null>(null);
+  const [filter, setFilter] = useState<SongFilter>("PENDING");
+  const [songs, setSongs] = useState<Song[] | null>(null);
+  const [queueCount, setQueueCount] = useState<number | null>(null);
   const [licenses, setLicenses] = useState<LicenseInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [licError, setLicError] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    if (!user) return;
-    api<Song[]>("/api/admin/songs?review_status=PENDING")
-      .then(setPending)
+    if (!user || user.role !== "ADMIN") return;
+    setSongs(null);
+    api<Song[]>(`/api/admin/songs?review_status=${filter}`)
+      .then(setSongs)
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to load review queue");
-        setPending([]);
+        setError(err instanceof Error ? err.message : "Failed to load songs");
+        setSongs([]);
       });
+  }, [user, filter]);
+  // Badge on the songs tab always reflects the review queue, whichever filter is open.
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
+    api<Song[]>("/api/admin/songs")
+      .then((rows) => setQueueCount(rows.length))
+      .catch(() => setQueueCount(null));
+  }, [user, songs]);
+  useEffect(() => {
+    if (!user || user.role !== "ADMIN") return;
     api<LicenseInfo[]>("/api/admin/licenses?review_status=PENDING")
       .then(setLicenses)
       .catch((err: unknown) => {
@@ -63,7 +76,7 @@ export default function AdminPage() {
   }
 
   const tabs: { id: Tab; label: string; count: number | null }[] = [
-    { id: "songs", label: "Song review", count: pending?.length ?? null },
+    { id: "songs", label: "Song review", count: queueCount },
     { id: "licenses", label: "License review", count: licenses?.length ?? null },
     { id: "jobs", label: "Jobs", count: null },
   ];
@@ -99,7 +112,13 @@ export default function AdminPage() {
 
       <div className="mt-6">
         {tab === "songs" ? (
-          <AdminQueue pending={pending} error={error} setPending={setPending} />
+          <AdminQueue
+            songs={songs}
+            error={error}
+            setSongs={setSongs}
+            filter={filter}
+            setFilter={setFilter}
+          />
         ) : tab === "licenses" ? (
           <AdminLicenses pending={licenses} error={licError} setPending={setLicenses} />
         ) : (

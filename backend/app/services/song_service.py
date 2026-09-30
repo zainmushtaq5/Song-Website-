@@ -174,6 +174,188 @@ async def create_song(
     await enqueue(db, JobType.PROBE_UPLOAD, {"song_id": str(song_id), "audio_key": audio_key})
     return song
 
+
+async def _read_replacement(file: UploadFile, allowed: dict[str, str], kind: str, max_bytes: int) -> tuple[bytes, str]:
+    """Validate a replacement file exactly like a fresh upload, and read it.
+
+    Same three gates as create_song: declared MIME type, magic bytes, and size. An
+    admin edit must not become a way to smuggle a file past the rules an upload obeys.
+    """
+    validate_upload_file(file, allowed, kind)
+    head = await file.read(16)
+    validate_file_signature(head, file.content_type or "")
+    await file.seek(0)
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"{kind.capitalize()} file too large",
+        )
+    return data, allowed[file.content_type or ""]
+
+
+def _editable_text(value: str | None, field: str, max_length: int, *, allow_clear: bool) -> str | None:
+    """Multipart edit semantics: None = field absent = unchanged, "" = clear.
+
+    Validation lives here rather than in the route so every admin surface that calls
+    the service enforces the same rules.
+    """
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        if not allow_clear:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{field} cannot be empty"
+            )
+        return None
+    if len(value) > max_length:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"{field} is too long"
+        )
+    return value
+
+
+async def admin_update_song(
+    db: AsyncSession,
+    song: Song,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    genre: str | None = None,
+    license_type_raw: str | None = None,
+    rights_note: str | None = None,
+    download_allowed: bool | None = None,
+    audio: UploadFile | None = None,
+    cover: UploadFile | None = None,
+) -> tuple[list[str], bool]:
+    """Apply a direct admin edit to any song. Returns (changed fields, audio replaced).
+
+    Audio is the interesting case: a replacement is a new object at a new key, the old
+    one is deleted, and the metadata columns are cleared and re-probed by the worker —
+    the same path a fresh upload takes, so an admin-replaced file can never keep the
+    previous file's duration/bitrate.
+    """
+    changed: list[str] = []
+
+    new_title = _editable_text(title, "title", 200, allow_clear=False)
+    if new_title is not None and new_title != song.title:
+        song.title = new_title
+        # Slugs are derived from titles at creation; keep that relationship instead of
+        # letting the public URL silently disagree with the page heading.
+        song.slug = unique_slug(new_title, 240)
+        changed.append("title")
+
+    new_description = _editable_text(description, "description", 5000, allow_clear=True)
+    if description is not None and new_description != song.description:
+        song.description = new_description
+        changed.append("description")
+
+    if genre is not None:
+        new_genre = await ensure_genre(db, _editable_text(genre, "genre", 80, allow_clear=True))
+        if (new_genre.id if new_genre else None) != song.genre_id:
+            song.genre_id = new_genre.id if new_genre else None
+            song.genre = new_genre
+            changed.append("genre")
+
+    license_type = song.license_type
+    if license_type_raw is not None:
+        raw = license_type_raw.strip()
+        if raw:
+            try:
+                license_type = LicenseType(raw)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Invalid license type: {license_type_raw}",
+                )
+        else:
+            license_type = None  # "" clears the license (streaming-only)
+
+    if rights_note is not None:
+        new_rights_note = _editable_text(rights_note, "rights_note", 2000, allow_clear=True)
+    else:
+        new_rights_note = song.rights_note
+    downloads = song.download_allowed if download_allowed is None else download_allowed
+
+    # Same rule the upload endpoint enforces: allowing downloads requires a license
+    # type, and "other" is meaningless without a rights note.
+    if download_allowed is not None or license_type_raw is not None or rights_note is not None:
+        _license_check(downloads, license_type, new_rights_note)
+
+    if license_type != song.license_type:
+        song.license_type = license_type
+        # The license row drives the download gate and the UI badge, so it has to agree
+        # with the song columns the admin just edited.
+        if song.license is not None:
+            song.license.license_type = license_type.value if license_type else None
+        changed.append("license_type")
+    if rights_note is not None and new_rights_note != song.rights_note:
+        song.rights_note = new_rights_note
+        changed.append("rights_note")
+    if downloads != song.download_allowed:
+        song.download_allowed = downloads
+        changed.append("download_allowed")
+
+    new_audio_key: str | None = None
+    if audio is not None:
+        data, ext = await _read_replacement(audio, ALLOWED_AUDIO_TYPES, "audio", settings.MAX_AUDIO_BYTES)
+        new_audio_key = f"audio/{uuid4()}{ext}"
+        storage.upload(new_audio_key, BytesAdapter(data), audio.content_type or "application/octet-stream")
+        old_audio_key = song.audio_key
+        song.audio_key = new_audio_key
+        song.file_size_bytes = len(data)
+        song.mime_type = audio.content_type
+        # The stored metadata describes bytes that no longer exist: clear it and let the
+        # worker refill it, exactly like a fresh upload.
+        song.duration_sec = 0
+        song.bitrate_kbps = None
+        song.sample_rate = None
+        _delete_quietly(old_audio_key)
+        changed.append("audio")
+
+    if cover is not None:
+        data, ext = await _read_replacement(cover, ALLOWED_COVER_TYPES, "cover image", settings.MAX_COVER_BYTES)
+        new_cover_key = f"covers/{uuid4()}{ext}"
+        storage.upload(new_cover_key, BytesAdapter(data), cover.content_type or "application/octet-stream")
+        _delete_quietly(song.cover_key)
+        song.cover_key = new_cover_key
+        changed.append("cover")
+
+    await db.flush()
+
+    if new_audio_key is not None:
+        from app.models.job import JobType
+        from app.services.job_service import enqueue
+
+        # Same durable job a fresh upload queues, so the new file gets probed even if
+        # this request's response is lost.
+        await enqueue(db, JobType.PROBE_UPLOAD, {"song_id": str(song.id), "audio_key": new_audio_key})
+
+    return changed, new_audio_key is not None
+
+
+def _delete_quietly(key: str) -> None:
+    """Best effort object cleanup: a leaked object is better than a failed edit."""
+    try:
+        storage.delete(key)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def admin_soft_delete(db: AsyncSession, song: Song) -> None:
+    """Soft-delete a song: gone from feed, search, playlists and detail pages at once.
+
+    Every public read path already filters `deleted_at IS NULL`, so setting it is what
+    makes the removal immediate; status REMOVED records why the row is gone for an
+    admin looking at it later.
+    """
+    song.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+    song.status = SongStatus.REMOVED
+    await db.flush()
+
+
+
 def _cover_url(song: Song) -> str | None:
     return storage.presigned_get_url(song.cover_key, ttl=3600)
 

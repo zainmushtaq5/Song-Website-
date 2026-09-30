@@ -8,7 +8,7 @@ export interface User {
   avatar_url: string | null;
 }
 
-export type SongStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type SongStatus = "PENDING" | "APPROVED" | "REJECTED" | "REMOVED";
 
 export type LicenseStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "SUSPENDED" | "REMOVED";
 
@@ -115,6 +115,7 @@ export interface NotificationItem {
   type:
     | "song_approved"
     | "song_rejected"
+    | "song_removed"
     | "new_follower"
     | "license_approved"
     | "license_rejected"

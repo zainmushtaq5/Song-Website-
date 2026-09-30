@@ -47,6 +47,12 @@ class SongRejected(BaseModel):
     rejection_reason: str = Field(min_length=3, max_length=2000)
 
 
+class SongDelete(BaseModel):
+    """Optional reason recorded with an admin's direct song deletion."""
+
+    reason: str | None = Field(default=None, max_length=2000)
+
+
 class SongStatusOut(BaseModel):
     id: UUID
     status: SongStatus
