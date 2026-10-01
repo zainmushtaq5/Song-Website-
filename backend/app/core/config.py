@@ -39,8 +39,9 @@ class Settings(BaseSettings):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        if "sslmode=require" in url:
-            url = url.replace("sslmode=require", "ssl=require")
+        # asyncpg requires ssl=require instead of sslmode=require
+        if "sslmode=" in url:
+            url = url.replace("sslmode=require", "ssl=require").replace("sslmode=verify-full", "ssl=require")
         return url
 
     # JWT
