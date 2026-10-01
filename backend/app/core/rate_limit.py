@@ -9,9 +9,11 @@ from app.core.config import settings
 
 _redis = None
 if settings.REDIS_URL:
-    import redis.asyncio as aioredis
-
-    _redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        import redis.asyncio as aioredis
+        _redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    except ImportError:
+        pass  # redis not installed — use in-process fallback
 
 # Fallback: per-process windows (fine for dev/test with a single worker)
 _windows: dict[str, deque[float]] = defaultdict(deque)
