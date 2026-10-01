@@ -138,6 +138,30 @@ async def _search_deezer(query: str) -> dict[str, Any]:
         return {}
 
 
+async def _search_bing_images(query: str) -> str | None:
+    """Fallback to scrape the first image result from Bing Images."""
+    try:
+        search_query = f"{query} song cover art"
+        params = urllib.parse.urlencode({"q": search_query})
+        url = f"https://www.bing.com/images/search?{params}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        req = urllib.request.Request(url, headers=headers)
+        
+        def fetch():
+            with urllib.request.urlopen(req, timeout=7.0) as resp:
+                return resp.read().decode("utf-8", errors="ignore")
+                
+        html = await asyncio.to_thread(fetch)
+        # Bing embeds image URLs in murl":"..." JSON-like structures in the HTML
+        matches = re.findall(r'murl&quot;:&quot;(.*?)&quot;', html)
+        if matches:
+            return matches[0]
+    except Exception as exc:
+        log.warning("Bing image search error for %r: %s", query, exc)
+    return None
+
 async def _search_musicbrainz(query: str) -> dict[str, Any]:
     params = urllib.parse.urlencode({
         "query": f'recording:"{query}"',
@@ -280,6 +304,13 @@ async def lookup_song_metadata(query: str) -> dict[str, Any]:
 
     # Cover image priority: iTunes 600x600 -> Deezer 500x500
     cover_url = itunes.get("cover_url") or deezer.get("cover_url")
+    
+    if not cover_url:
+        log.info("No cover found in metadata APIs, falling back to Bing image search for '%s'", song_name)
+        bing_url = await _search_bing_images(f"{artist or ''} {song_name}".strip())
+        if bing_url:
+            cover_url = bing_url
+            sources.append("bing_images")
 
     # Download image into base64 data url for easy client-side conversion to File
     cover_data_url = None
