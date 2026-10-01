@@ -49,6 +49,7 @@ export default function UploadPage() {
   const [cover, setCover] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [licTick, setLicTick] = useState(0);
+  const [isRequest, setIsRequest] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -75,63 +76,75 @@ export default function UploadPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!audio || !cover) {
-      setFileError("Both an audio file and a cover image are required.");
+    if (!isRequest && (!audio || !cover)) {
+      setFileError("Both an audio file and a cover image are required for a direct upload.");
       return;
     }
     setFileError(null);
     setBusy(true);
     try {
-      // 1. Get presigned URLs
-      const prepareRes = await api<{
-        song_id: string;
-        audio_key: string;
-        cover_key: string;
-        audio_url: string;
-        cover_url: string;
-      }>("/api/songs/prepare-upload", {
-        method: "POST",
-        json: {
-          title: form.title.trim(),
-          audio_type: audio.type || "audio/mpeg",
-          cover_type: cover.type || "image/jpeg",
-        },
-      });
+      if (isRequest) {
+        await api<Song>("/api/songs/request-song", {
+          method: "POST",
+          json: {
+            title: form.title.trim(),
+            description: form.description.trim() || undefined,
+            genre: form.genre.trim() || undefined,
+          },
+        });
+        toast("Song request submitted!", "success");
+      } else {
+        // 1. Get presigned URLs
+        const prepareRes = await api<{
+          song_id: string;
+          audio_key: string;
+          cover_key: string;
+          audio_url: string;
+          cover_url: string;
+        }>("/api/songs/prepare-upload", {
+          method: "POST",
+          json: {
+            title: form.title.trim(),
+            audio_type: audio!.type || "audio/mpeg",
+            cover_type: cover!.type || "image/jpeg",
+          },
+        });
 
-      // 2. Upload audio to R2 directly
-      const audioRes = await fetch(prepareRes.audio_url, {
-        method: "PUT",
-        body: audio,
-        headers: { "Content-Type": audio.type || "audio/mpeg" },
-      });
-      if (!audioRes.ok) throw new Error("Failed to upload audio file to storage");
+        // 2. Upload audio to R2 directly
+        const audioRes = await fetch(prepareRes.audio_url, {
+          method: "PUT",
+          body: audio,
+          headers: { "Content-Type": audio!.type || "audio/mpeg" },
+        });
+        if (!audioRes.ok) throw new Error("Failed to upload audio file to storage");
 
-      // 3. Upload cover to R2 directly
-      const coverRes = await fetch(prepareRes.cover_url, {
-        method: "PUT",
-        body: cover,
-        headers: { "Content-Type": cover.type || "image/jpeg" },
-      });
-      if (!coverRes.ok) throw new Error("Failed to upload cover image to storage");
+        // 3. Upload cover to R2 directly
+        const coverRes = await fetch(prepareRes.cover_url, {
+          method: "PUT",
+          body: cover,
+          headers: { "Content-Type": cover!.type || "image/jpeg" },
+        });
+        if (!coverRes.ok) throw new Error("Failed to upload cover image to storage");
 
-      // 4. Finalize
-      await api<Song>("/api/songs/finalize-upload", {
-        method: "POST",
-        json: {
-          song_id: prepareRes.song_id,
-          title: form.title.trim(),
-          description: form.description.trim() || undefined,
-          genre: form.genre.trim() || undefined,
-          download_allowed: form.download_allowed,
-          license_type: form.download_allowed && form.license_type ? form.license_type : undefined,
-          rights_note: form.rights_note.trim() || undefined,
-          audio_key: prepareRes.audio_key,
-          cover_key: prepareRes.cover_key,
-          audio_type: audio.type || "audio/mpeg",
-          audio_size: audio.size,
-        },
-      });
-      toast("Upload submitted for review", "success");
+        // 4. Finalize
+        await api<Song>("/api/songs/finalize-upload", {
+          method: "POST",
+          json: {
+            song_id: prepareRes.song_id,
+            title: form.title.trim(),
+            description: form.description.trim() || undefined,
+            genre: form.genre.trim() || undefined,
+            download_allowed: form.download_allowed,
+            license_type: form.download_allowed && form.license_type ? form.license_type : undefined,
+            rights_note: form.rights_note.trim() || undefined,
+            audio_key: prepareRes.audio_key,
+            cover_key: prepareRes.cover_key,
+            audio_type: audio!.type || "audio/mpeg",
+            audio_size: audio!.size,
+          },
+        });
+        toast("Upload submitted for review", "success");
+      }
       setForm({ ...form, title: "", description: "", rights_note: "" });
       setAudio(null);
       setCover(null);
@@ -159,6 +172,8 @@ export default function UploadPage() {
     busy,
     fileError,
     uploads,
+    isRequest,
+    setIsRequest,
     onSubmit,
     onLicenseSaved: () => setLicTick((t) => t + 1),
   });
@@ -176,10 +191,12 @@ function UploadView(props: {
   busy: boolean;
   fileError: string | null;
   uploads: Song[] | null;
+  isRequest: boolean;
+  setIsRequest: (val: boolean) => void;
   onSubmit: (e: React.FormEvent) => void;
   onLicenseSaved: () => void;
 }) {
-  const { form, audio, cover, coverPreview, setCoverPreview, busy, fileError, uploads } = props;
+  const { form, audio, cover, coverPreview, setCoverPreview, busy, fileError, uploads, isRequest, setIsRequest } = props;
   const setForm = props.setForm;
   return (
     <div className="mx-auto max-w-2xl">
@@ -190,6 +207,24 @@ function UploadView(props: {
       </p>
 
       <form onSubmit={props.onSubmit} className="mt-6 flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
+        <div className="flex items-start gap-3 rounded-card border border-accent/20 bg-accent/5 p-4">
+          <input 
+            type="checkbox" 
+            id="is-request-toggle" 
+            checked={isRequest} 
+            onChange={(e) => setIsRequest(e.target.checked)}
+            className="mt-1 h-4 w-4 cursor-pointer accent-accent"
+          />
+          <div className="flex flex-col">
+            <label htmlFor="is-request-toggle" className="text-sm font-semibold cursor-pointer select-none">
+              Submit as a Song Request
+            </label>
+            <p className="text-xs text-muted mt-0.5">
+              Turn this on if you just want to request a song by name. Audio files and cover images will become optional, and the admin will upload the files for you!
+            </p>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <label htmlFor="song-title-input" className="text-sm font-medium text-ink">
@@ -243,15 +278,16 @@ function UploadView(props: {
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
+          <div className={`flex flex-col gap-1.5 ${isRequest ? "opacity-50 pointer-events-none" : ""}`}>
             <label htmlFor="audio-input" className="text-sm text-muted">
-              Audio file (MP3, M4A, WAV — max 50 MB)
+              Audio file (MP3, M4A, WAV — max 50 MB) {isRequest ? "(Optional)" : "*"}
             </label>
             <input
               id="audio-input"
               type="file"
               accept="audio/mpeg,audio/mp4,audio/wav,.mp3,.m4a,.wav"
-              required
+              required={!isRequest}
+              disabled={isRequest}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 props.setAudio(f);
@@ -269,9 +305,9 @@ function UploadView(props: {
               className="text-sm file:mr-3 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className={`flex flex-col gap-1.5 ${isRequest ? "opacity-50 pointer-events-none" : ""}`}>
             <label htmlFor="cover-input" className="text-sm text-muted">
-              Cover image (JPG, PNG, WebP — max 5 MB)
+              Cover image (JPG, PNG, WebP — max 5 MB) {isRequest ? "(Optional)" : "*"}
             </label>
             {coverPreview ? (
               <div className="flex items-center gap-3 rounded-card border border-line bg-surface-2 p-2">
@@ -303,7 +339,8 @@ function UploadView(props: {
                 id="cover-input"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-                required={!cover}
+                required={!isRequest && !cover}
+                disabled={isRequest}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   props.setCover(f);
@@ -362,7 +399,7 @@ function UploadView(props: {
 
         <Button type="submit" loading={busy} className="mt-1">
           <UploadCloud className="h-4 w-4" aria-hidden />
-          Submit for review
+          {isRequest ? "Submit Song Request" : "Submit for review"}
         </Button>
       </form>
 

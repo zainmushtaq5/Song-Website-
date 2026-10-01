@@ -209,6 +209,40 @@ async def finalize_upload(
     return song_service.to_song_out(song)
 
 
+class RequestSongIn(BaseModel):
+    title: str
+    description: str | None = None
+    genre: str | None = None
+
+@router.post("/request-song", response_model=SongOut)
+async def request_song(
+    req: RequestSongIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.schemas.song import SongCreateMeta
+    from uuid import uuid4
+    
+    meta = SongCreateMeta(
+        title=req.title,
+        description=req.description,
+        genre=req.genre,
+        download_allowed=False,
+        license_type=None,
+        rights_note=None,
+    )
+    song = await song_service.create_song_direct(
+        db, request, user, meta, 
+        song_id=uuid4(), 
+        audio_key="", 
+        cover_key="", 
+        audio_type="", 
+        audio_size=0
+    )
+    return song_service.to_song_out(song)
+
+
 
 @router.post("", response_model=SongOut, status_code=status.HTTP_201_CREATED)
 async def upload_song(
