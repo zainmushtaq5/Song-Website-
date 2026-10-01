@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { AnalyticsPanel } from "@/components/analytics/analytics-panel";
 import { LicenseEditor } from "@/components/music/license-editor";
+import { MetadataAutofillButton } from "@/components/music/metadata-autofill-button";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input, Textarea } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export default function UploadPage() {
   });
   const [audio, setAudio] = useState<File | null>(null);
   const [cover, setCover] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [licTick, setLicTick] = useState(0);
 
   useEffect(() => setMounted(true), []);
@@ -94,6 +96,7 @@ export default function UploadPage() {
       setForm({ ...form, title: "", description: "", rights_note: "" });
       setAudio(null);
       setCover(null);
+      setCoverPreview(null);
       for (const id of ["audio-input", "cover-input"]) {
         const el = document.getElementById(id) as HTMLInputElement | null;
         if (el) el.value = "";
@@ -105,21 +108,39 @@ export default function UploadPage() {
     }
   }
 
-  return UploadView({ form, setForm, setAudio, setCover, busy, fileError, uploads, onSubmit, onLicenseSaved: () => setLicTick((t) => t + 1) });
+  return UploadView({
+    form,
+    setForm,
+    audio,
+    setAudio,
+    cover,
+    setCover,
+    coverPreview,
+    setCoverPreview,
+    busy,
+    fileError,
+    uploads,
+    onSubmit,
+    onLicenseSaved: () => setLicTick((t) => t + 1),
+  });
 }
 
 function UploadView(props: {
   form: { title: string; description: string; genre: string; download_allowed: boolean; license_type: LicenseType | ""; rights_note: string };
   setForm: (fn: (f: typeof props.form) => typeof props.form) => void;
+  audio: File | null;
   setAudio: (f: File | null) => void;
+  cover: File | null;
   setCover: (f: File | null) => void;
+  coverPreview: string | null;
+  setCoverPreview: (p: string | null) => void;
   busy: boolean;
   fileError: string | null;
   uploads: Song[] | null;
   onSubmit: (e: React.FormEvent) => void;
   onLicenseSaved: () => void;
 }) {
-  const { form, busy, fileError, uploads } = props;
+  const { form, audio, cover, coverPreview, setCoverPreview, busy, fileError, uploads } = props;
   const setForm = props.setForm;
   return (
     <div className="mx-auto max-w-2xl">
@@ -130,13 +151,44 @@ function UploadView(props: {
       </p>
 
       <form onSubmit={props.onSubmit} className="mt-6 flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
-        <Input
-          label="Title"
-          required
-          maxLength={200}
-          value={form.title}
-          onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-        />
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="song-title-input" className="text-sm font-medium text-ink">
+              Title <span className="text-red-400">*</span>
+            </label>
+            <MetadataAutofillButton
+              songTitle={form.title}
+              audioFile={audio}
+              onFill={(autofill) => {
+                setForm((prev) => ({
+                  ...prev,
+                  title: autofill.title ?? prev.title,
+                  genre: autofill.genre ?? prev.genre,
+                  license_type: autofill.licenseType ?? prev.license_type,
+                  download_allowed: autofill.downloadAllowed ?? prev.download_allowed,
+                  description: !prev.description.trim() && autofill.description ? autofill.description : prev.description,
+                }));
+                if (autofill.coverFile) {
+                  props.setCover(autofill.coverFile);
+                  setCoverPreview(autofill.coverDataUrl ?? null);
+                }
+              }}
+            />
+          </div>
+          <input
+            id="song-title-input"
+            required
+            maxLength={200}
+            placeholder="e.g. Lose Yourself, Faded, Smells Like Teen Spirit"
+            value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            className="h-11 rounded-card border border-line bg-surface px-3 text-sm outline-none transition-colors placeholder:text-muted/60 focus:border-accent"
+          />
+          <p className="text-[11px] text-muted">
+            Tip: Click &quot;Auto-fill from internet&quot; to fetch genre (Hip-Hop, Rock, etc.), artwork, and royalty license.
+          </p>
+        </div>
+
         <Textarea
           label="Description (optional)"
           maxLength={5000}
@@ -146,7 +198,7 @@ function UploadView(props: {
         <Input
           label="Genre (optional)"
           maxLength={80}
-          placeholder="e.g. Lo-Fi, Hip-Hop"
+          placeholder="e.g. Lo-Fi, Hip-Hop, Rock, Pop"
           value={form.genre}
           onChange={(e) => setForm((f) => ({ ...f, genre: e.target.value }))}
         />
@@ -161,7 +213,20 @@ function UploadView(props: {
               type="file"
               accept="audio/mpeg,audio/mp4,audio/wav,.mp3,.m4a,.wav"
               required
-              onChange={(e) => props.setAudio(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                props.setAudio(f);
+                if (f && !form.title.trim()) {
+                  const guess = f.name
+                    .replace(/\.[^/.]+$/, "")
+                    .replace(/^\d+[\s.-]+/, "")
+                    .replace(/[_-]/g, " ")
+                    .trim();
+                  if (guess) {
+                    setForm((prev) => ({ ...prev, title: guess }));
+                  }
+                }
+              }}
               className="text-sm file:mr-3 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
             />
           </div>
@@ -169,14 +234,49 @@ function UploadView(props: {
             <label htmlFor="cover-input" className="text-sm text-muted">
               Cover image (JPG, PNG, WebP — max 5 MB)
             </label>
-            <input
-              id="cover-input"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-              required
-              onChange={(e) => props.setCover(e.target.files?.[0] ?? null)}
-              className="text-sm file:mr-3 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
-            />
+            {coverPreview ? (
+              <div className="flex items-center gap-3 rounded-card border border-line bg-surface-2 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverPreview}
+                  alt="Cover preview"
+                  className="h-12 w-12 rounded-card object-cover border border-line shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-ink truncate">Cover artwork attached</p>
+                  <p className="text-[11px] text-muted truncate">{cover?.name || "Downloaded from internet"}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.setCover(null);
+                      setCoverPreview(null);
+                      const el = document.getElementById("cover-input") as HTMLInputElement | null;
+                      if (el) el.value = "";
+                    }}
+                    className="mt-0.5 text-[11px] font-medium text-accent hover:underline"
+                  >
+                    Change / upload custom
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <input
+                id="cover-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                required={!cover}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  props.setCover(f);
+                  if (f) {
+                    setCoverPreview(URL.createObjectURL(f));
+                  } else {
+                    setCoverPreview(null);
+                  }
+                }}
+                className="text-sm file:mr-3 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
+              />
+            )}
           </div>
         </div>
         {fileError && <p className="text-xs text-red-400">{fileError}</p>}

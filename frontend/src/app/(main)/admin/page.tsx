@@ -1,6 +1,7 @@
 "use client";
 
-import { Cog, FileCheck, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Cog, FileCheck, ShieldCheck, UploadCloud } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AdminJobs } from "@/components/music/admin-jobs";
@@ -83,7 +84,16 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h1 className="text-xl font-extrabold tracking-tight">Admin</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-extrabold tracking-tight">Admin</h1>
+        <Link
+          href="/upload"
+          className="flex items-center gap-1.5 rounded-pill bg-accent px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+        >
+          <UploadCloud className="h-3.5 w-3.5" aria-hidden />
+          Upload song
+        </Link>
+      </div>
       <div role="tablist" aria-label="Admin queues" className="mt-4 flex items-center gap-1 rounded-pill border border-line bg-surface p-1">
         {tabs.map((t) => (
           <button

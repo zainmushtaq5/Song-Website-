@@ -14,6 +14,20 @@ export type LicenseStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "S
 
 export type LicenseType = "royalty_free" | "artist_owned" | "cc_by" | "other";
 
+export interface SongMetadataLookup {
+  song_name: string;
+  artist_name: string | null;
+  album: string | null;
+  genre: string | null;
+  cover_url: string | null;
+  cover_data_url: string | null;
+  license_type: LicenseType;
+  download_allowed: boolean;
+  description: string;
+  tags: string[];
+  sources: string[];
+}
+
 export interface Song {
   id: string;
   title: string;

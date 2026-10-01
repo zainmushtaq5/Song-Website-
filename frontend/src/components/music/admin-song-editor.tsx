@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { MetadataAutofillButton } from "@/components/music/metadata-autofill-button";
 import { api } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/api-url";
 import { toast } from "@/stores/toast";
@@ -45,6 +46,7 @@ export function AdminSongEditor({
   const [downloads, setDownloads] = useState(song.download_allowed);
   const [note, setNote] = useState("");
   const [cover, setCover] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [audio, setAudio] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -85,10 +87,10 @@ export function AdminSongEditor({
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-card border border-line bg-surface-2">
-              {song.cover_url && (
+              {(coverPreview || song.cover_url) && (
                 // eslint-disable-next-line @next/next/no-img-element -- dynamic URL
                 <img
-                  src={resolveMediaUrl(song.cover_url) ?? undefined}
+                  src={coverPreview || (resolveMediaUrl(song.cover_url) ?? undefined)}
                   alt={`${song.title} cover`}
                   className="h-full w-full object-cover"
                 />
@@ -108,8 +110,24 @@ export function AdminSongEditor({
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Title</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Title</span>
+              <MetadataAutofillButton
+                songTitle={title}
+                onFill={(autofill) => {
+                  if (autofill.title) setTitle(autofill.title);
+                  if (autofill.genre) setGenre(autofill.genre);
+                  if (autofill.licenseType) setLicenseType(autofill.licenseType);
+                  if (autofill.downloadAllowed !== undefined) setDownloads(autofill.downloadAllowed);
+                  if (autofill.description && !description.trim()) setDescription(autofill.description);
+                  if (autofill.coverFile) {
+                    setCover(autofill.coverFile);
+                    setCoverPreview(autofill.coverDataUrl ?? null);
+                  }
+                }}
+              />
+            </div>
             <input
               className={FIELD_CLASS}
               data-testid="admin-field-title"
@@ -117,7 +135,7 @@ export function AdminSongEditor({
               maxLength={200}
               onChange={(e) => setTitle(e.target.value)}
             />
-          </label>
+          </div>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Genre</span>
             <input
@@ -190,16 +208,36 @@ export function AdminSongEditor({
               onChange={(e) => setNote(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Replace cover image</span>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              data-testid="admin-field-cover"
-              onChange={(e) => setCover(e.target.files?.[0] ?? null)}
-              className="text-xs text-muted file:mr-2 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
-            />
-          </label>
+            {coverPreview ? (
+              <div className="flex items-center gap-2 rounded-card border border-line bg-surface-2 p-1.5">
+                <span className="text-xs text-ink truncate flex-1">New artwork ready ({cover?.name ?? "from internet"})</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCover(null);
+                    setCoverPreview(null);
+                  }}
+                  className="text-[10px] text-accent hover:underline"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                data-testid="admin-field-cover"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setCover(f);
+                  if (f) setCoverPreview(URL.createObjectURL(f));
+                }}
+                className="text-xs text-muted file:mr-2 file:rounded-pill file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:text-ink"
+              />
+            )}
+          </div>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Replace audio file</span>
             <input

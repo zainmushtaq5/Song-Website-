@@ -36,6 +36,39 @@ async def my_uploads(
     songs = await song_service.artist_uploads(db, user)
     return [song_service.to_song_out(s) for s in songs]
 
+@router.get("/lookup-metadata")
+async def lookup_song_meta(
+    title: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> dict:
+    if not title or not title.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Song title is required"
+        )
+    from app.services.metadata_service import lookup_song_metadata
+
+    return await lookup_song_metadata(title.strip())
+
+
+@router.get("/cover-proxy")
+async def cover_proxy(
+    url: str,
+    user: User = Depends(get_current_user),
+):
+    import httpx
+    from fastapi.responses import Response
+
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid URL")
+
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch image")
+        ct = resp.headers.get("content-type", "image/jpeg")
+        return Response(content=resp.content, media_type=ct)
+
 
 @router.get("/by-slug/{slug}", response_model=SongOut)
 async def get_song_by_slug(slug: str, db: AsyncSession = Depends(get_db)) -> SongOut:
