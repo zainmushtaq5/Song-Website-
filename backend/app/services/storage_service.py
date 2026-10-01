@@ -18,8 +18,13 @@ class StorageService:
     def __init__(self) -> None:
         self._driver = settings.STORAGE_DRIVER
         self._local_dir = Path(settings.LOCAL_STORAGE_DIR)
-        self._s3 = None
-        if self._driver == "r2":
+        self._s3 = None  # Lazy-initialized on first use to avoid import-time crashes
+
+    def _get_s3(self):
+        """Return the boto3 S3 client, creating it lazily on first call."""
+        if self._s3 is None:
+            if self._driver != "r2":
+                raise RuntimeError("S3 client requested but STORAGE_DRIVER is not 'r2'")
             self._s3 = boto3.client(
                 "s3",
                 endpoint_url=settings.STORAGE_ENDPOINT,
@@ -28,6 +33,7 @@ class StorageService:
                 config=BotoConfig(signature_version="s3v4"),
                 region_name="auto",
             )
+        return self._s3
 
     def _local_path(self, key: str) -> Path:
         # Defense in depth: never allow path traversal from a storage key.
@@ -38,8 +44,7 @@ class StorageService:
 
     def upload(self, key: str, fileobj: BinaryIO, content_type: str) -> None:
         if self._driver == "r2":
-            assert self._s3 is not None
-            self._s3.upload_fileobj(fileobj, settings.STORAGE_BUCKET, key, ExtraArgs={"ContentType": content_type})
+            self._get_s3().upload_fileobj(fileobj, settings.STORAGE_BUCKET, key, ExtraArgs={"ContentType": content_type})
         else:
             path = self._local_path(key)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,15 +54,13 @@ class StorageService:
 
     def read_bytes(self, key: str) -> bytes:
         if self._driver == "r2":
-            assert self._s3 is not None
-            obj = self._s3.get_object(Bucket=settings.STORAGE_BUCKET, Key=key)
+            obj = self._get_s3().get_object(Bucket=settings.STORAGE_BUCKET, Key=key)
             return obj["Body"].read()
         return self._local_path(key).read_bytes()
 
     def delete(self, key: str) -> None:
         if self._driver == "r2":
-            assert self._s3 is not None
-            self._s3.delete_object(Bucket=settings.STORAGE_BUCKET, Key=key)
+            self._get_s3().delete_object(Bucket=settings.STORAGE_BUCKET, Key=key)
         else:
             path = self._local_path(key)
             if path.exists():
@@ -66,8 +69,7 @@ class StorageService:
     def presigned_get_url(self, key: str, ttl: int | None = None) -> str:
         ttl = ttl or settings.SIGNED_URL_TTL
         if self._driver == "r2":
-            assert self._s3 is not None
-            return self._s3.generate_presigned_url(
+            return self._get_s3().generate_presigned_url(
                 "get_object",
                 Params={"Bucket": settings.STORAGE_BUCKET, "Key": key},
                 ExpiresIn=ttl,

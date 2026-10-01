@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "dev-secret-change-me"
 
     # Background jobs (Phase 3.4): FFmpeg off the request thread + sweeps
-    JOB_WORKER_ENABLED: bool = True
+    JOB_WORKER_ENABLED: bool = False  # Disabled by default: serverless functions can't run persistent background loops
     JOB_POLL_SECONDS: float = 2.0
     JOB_MAX_ATTEMPTS: int = 3
     LICENSE_SWEEP_SECONDS: float = 300.0
