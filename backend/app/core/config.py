@@ -11,12 +11,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "Songs Website API"
     ENVIRONMENT: str = "development"  # development | production
     DEBUG: bool = True
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3100"]
+    CORS_ORIGINS: str | list[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3100"]
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def assemble_cors_origins(cls, v: any) -> list[str]:
+    @property
+    def cors_origins_list(self) -> list[str]:
+        v = self.CORS_ORIGINS
         if isinstance(v, str):
+            if v == "*":
+                return ["*"]
             if v.startswith("[") and v.endswith("]"):
                 import json
                 try:
