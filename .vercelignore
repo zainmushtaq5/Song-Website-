@@ -1,0 +1,13 @@
+# Exclude test files and dev artifacts from Vercel upload
+backend/tests/
+backend/.pytest_cache/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/.venv/
+backend/scripts/
+backend/.ruff_cache/
+frontend/.next/
+frontend/node_modules/
+**/.git/
+**/*.log

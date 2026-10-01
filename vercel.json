@@ -24,5 +24,10 @@
         "service": "frontend"
       }
     }
-  ]
+  ],
+  "functions": {
+    "backend/**": {
+      "excludeFiles": "{botocore/data/!(s3|sts|s3control),**/__pycache__/**,**/*.pyc,**/*.pyo,**/tests/**,**/.pytest_cache/**,**/*.dist-info/RECORD,**/*.dist-info/WHEEL,boto3/examples/**,botocore/vendored/**}"
+    }
+  }
 }

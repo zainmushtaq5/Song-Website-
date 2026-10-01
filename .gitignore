@@ -36,3 +36,5 @@ probe-out.txt
 live*-out.txt
 force-push*
 
+.vercel
+.env*
