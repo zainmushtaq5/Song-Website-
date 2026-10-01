@@ -43,19 +43,32 @@ async def _user_signal_songs(db: AsyncSession, user_id: uuid.UUID) -> list[Song]
             select(Song).join(Like, Like.song_id == Song.id).where(Like.user_id == user_id)
         )
     ).scalars().all()
-    played = (
+    
+    played_rows = (
         await db.execute(
-            select(Song, func.count().label("plays"))
-            .join(Play, Play.song_id == Song.id)
+            select(Play.song_id, func.count().label("plays"))
             .where(Play.user_id == user_id)
-            .group_by(Song.id)
+            .group_by(Play.song_id)
             .order_by(desc("plays"))
         )
     ).all()
+    
+    played_ids = [r[0] for r in played_rows]
+    played = []
+    if played_ids:
+        played_songs = (
+            await db.execute(select(Song).where(Song.id.in_(played_ids)))
+        ).scalars().all()
+        # Maintain order from the aggregated query
+        songs_by_id = {s.id: s for s in played_songs}
+        for pid in played_ids:
+            if pid in songs_by_id:
+                played.append(songs_by_id[pid])
+                
     seen: dict[uuid.UUID, Song] = {}
     for s in liked:
         seen[s.id] = s
-    for song, _plays in played:
+    for song in played:
         seen.setdefault(song.id, song)
     return list(seen.values())
 
