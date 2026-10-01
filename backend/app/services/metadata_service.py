@@ -13,6 +13,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -176,6 +177,43 @@ async def _fetch_image_as_data_url(image_url: str) -> str | None:
     return None
 
 
+async def _search_all(query: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Run searches concurrently and return the results."""
+    itunes_task = asyncio.create_task(_search_itunes(query))
+    deezer_task = asyncio.create_task(_search_deezer(query))
+    mb_task = asyncio.create_task(_search_musicbrainz(query))
+    return await asyncio.gather(itunes_task, deezer_task, mb_task)
+
+def _simplify_query(query: str) -> str:
+    """Remove common YouTube/Spotify junk from titles to improve search matches."""
+    # Remove text in parentheses or brackets
+    q = re.sub(r'\(.*?\)', '', query)
+    q = re.sub(r'\[.*?\]', '', query)
+    
+    # Remove common promotional words
+    junk_words = [
+        "official video", "official music video", "lyric video", "lyrics", "audio", 
+        "new punjabi song", "new song", "hd", "4k", "remix", "feat", "ft.", "ft"
+    ]
+    
+    # Try to keep just the first part before a pipe or dash if it seems like a compound title
+    if '|' in q:
+        q = q.split('|')[0]
+    elif '-' in q:
+        # e.g., "Artist - Title" -> keep both, but if it's "Title - Some junk" it might strip too much. 
+        # Often it's safer to just clean the whole thing. Let's just remove junk words.
+        pass
+        
+    for word in junk_words:
+        # Case insensitive replacement of junk words
+        q = re.sub(rf'\b{re.escape(word)}\b', '', q, flags=re.IGNORECASE)
+    
+    # Strip year-like strings (e.g. 2024, 2025, 2026) that often pollute titles
+    q = re.sub(r'\b20[1-9][0-9]\b', '', q)
+    
+    # Clean up multiple spaces
+    return re.sub(r'\s+', ' ', q).strip()
+
 async def lookup_song_metadata(query: str) -> dict[str, Any]:
     """Search iTunes, Deezer, and MusicBrainz for track metadata.
 
@@ -210,12 +248,15 @@ async def lookup_song_metadata(query: str) -> dict[str, Any]:
             "sources": [],
         }
 
-    # Run iTunes, Deezer, and MusicBrainz searches concurrently
-    itunes_task = asyncio.create_task(_search_itunes(clean_query))
-    deezer_task = asyncio.create_task(_search_deezer(clean_query))
-    mb_task = asyncio.create_task(_search_musicbrainz(clean_query))
-
-    itunes, deezer, mb = await asyncio.gather(itunes_task, deezer_task, mb_task)
+    # Run initial search
+    itunes, deezer, mb = await _search_all(clean_query)
+    
+    # If no decent matches, try simplified query
+    if not itunes and not deezer:
+        simplified = _simplify_query(clean_query)
+        if simplified and simplified != clean_query:
+            log.info("No metadata found for '%s', retrying with '%s'", clean_query, simplified)
+            itunes, deezer, mb = await _search_all(simplified)
 
     sources = []
     if itunes:
@@ -227,6 +268,7 @@ async def lookup_song_metadata(query: str) -> dict[str, Any]:
 
     # Pick best artist, album, genre, cover_url
     artist = itunes.get("artist") or deezer.get("artist")
+
     album = itunes.get("album") or deezer.get("album")
     song_name = itunes.get("title") or deezer.get("title") or clean_query
     genre = itunes.get("genre")
