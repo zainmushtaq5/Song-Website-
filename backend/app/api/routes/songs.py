@@ -46,9 +46,29 @@ async def lookup_song_meta(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Song title is required"
         )
-    from app.services.metadata_service import lookup_song_metadata
+    try:
+        from app.services.metadata_service import lookup_song_metadata
 
-    return await lookup_song_metadata(title.strip())
+        return await lookup_song_metadata(title.strip())
+    except Exception as exc:
+        import logging
+        import traceback
+
+        logging.getLogger(__name__).error("Metadata lookup error: %s", traceback.format_exc())
+        return {
+            "song_name": title.strip(),
+            "artist_name": None,
+            "album": None,
+            "genre": None,
+            "cover_url": None,
+            "cover_data_url": None,
+            "license_type": "artist_owned",
+            "download_allowed": False,
+            "description": "",
+            "tags": [],
+            "sources": [],
+            "error_detail": str(exc),
+        }
 
 
 @router.get("/cover-proxy")
