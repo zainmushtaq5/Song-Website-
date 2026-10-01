@@ -254,5 +254,22 @@ class StorageService:
         cdn = settings.CDN_URL or "/media"
         return f"{cdn}/{key}?sig={sig}&ttl={ttl}"
 
+    def presigned_put_url(self, key: str, ttl: int | None = None) -> str:
+        ttl = ttl or 900
+        if self._driver == "r2":
+            return _presign_url(
+                "PUT",
+                settings.STORAGE_ENDPOINT,
+                settings.STORAGE_BUCKET,
+                key,
+                settings.STORAGE_ACCESS_KEY,
+                settings.STORAGE_SECRET_KEY,
+                "auto",
+                expires=ttl,
+            )
+        # For local dev, we will just return a fake URL, but the frontend will use standard FastAPI upload instead if it's local, OR we just let the frontend know direct upload isn't supported locally.
+        # Actually, let's just construct a dummy URL. 
+        return f"http://localhost:3000/api/local-upload-dummy?key={key}"
+
 
 storage = StorageService()

@@ -125,6 +125,91 @@ async def get_song(
     return song_service.to_song_out(song)
 
 
+from pydantic import BaseModel
+
+class PrepareUploadIn(BaseModel):
+    title: str
+    audio_type: str
+    cover_type: str
+
+class PrepareUploadOut(BaseModel):
+    song_id: UUID
+    audio_key: str
+    cover_key: str
+    audio_url: str
+    cover_url: str
+
+@router.post("/prepare-upload", response_model=PrepareUploadOut)
+async def prepare_upload(
+    req: PrepareUploadIn,
+    request: Request,
+    user: User = Depends(get_current_user)
+):
+    from app.services.storage_service import storage
+    from app.utils.validators import ALLOWED_AUDIO_TYPES, ALLOWED_COVER_TYPES
+    from uuid import uuid4
+
+    if req.audio_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(400, "Invalid audio type")
+    if req.cover_type not in ALLOWED_COVER_TYPES:
+        raise HTTPException(400, "Invalid cover type")
+
+    song_id = uuid4()
+    audio_ext = ALLOWED_AUDIO_TYPES[req.audio_type]
+    cover_ext = ALLOWED_COVER_TYPES[req.cover_type]
+    
+    audio_key = f"audio/{song_id}{audio_ext}"
+    cover_key = f"covers/{song_id}{cover_ext}"
+
+    # Return presigned PUT URLs (or fake ones for local)
+    audio_url = storage.presigned_put_url(audio_key)
+    cover_url = storage.presigned_put_url(cover_key)
+
+    return PrepareUploadOut(
+        song_id=song_id,
+        audio_key=audio_key,
+        cover_key=cover_key,
+        audio_url=audio_url,
+        cover_url=cover_url
+    )
+
+class FinalizeUploadIn(BaseModel):
+    song_id: UUID
+    title: str
+    description: str | None = None
+    genre: str | None = None
+    download_allowed: bool = False
+    license_type: str | None = None
+    rights_note: str | None = None
+    audio_key: str
+    cover_key: str
+    audio_type: str
+    audio_size: int
+
+@router.post("/finalize-upload", response_model=SongOut)
+async def finalize_upload(
+    req: FinalizeUploadIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.models.song import LicenseType
+    from app.schemas.song import SongCreateMeta
+
+    lt = LicenseType(req.license_type) if req.license_type else None
+    meta = SongCreateMeta(
+        title=req.title,
+        description=req.description,
+        genre=req.genre,
+        download_allowed=req.download_allowed,
+        license_type=lt,
+        rights_note=req.rights_note,
+    )
+    song = await song_service.create_song_direct(db, request, user, meta, req.song_id, req.audio_key, req.cover_key, req.audio_type, req.audio_size)
+    return song_service.to_song_out(song)
+
+
+
 @router.post("", response_model=SongOut, status_code=status.HTTP_201_CREATED)
 async def upload_song(
     request: Request,

@@ -179,6 +179,53 @@ async def create_song(
     await enqueue(db, JobType.PROBE_UPLOAD, {"song_id": str(song_id), "audio_key": audio_key})
     return song
 
+async def create_song_direct(
+    db: AsyncSession,
+    request: Request,
+    user: User,
+    meta,
+    song_id: UUID,
+    audio_key: str,
+    cover_key: str,
+    audio_type: str,
+    audio_size: int,
+) -> Song:
+    await enforce_rate_limit(request, "upload", str(user.id))
+    artist = await get_or_create_artist(db, user)
+    _license_check(meta.download_allowed, meta.license_type, meta.rights_note)
+
+    genre = await ensure_genre(db, meta.genre)
+    song = Song(
+        id=song_id,
+        artist_id=artist.id,
+        genre_id=genre.id if genre else None,
+        title=meta.title.strip(),
+        slug=unique_slug(meta.title, 240),
+        description=meta.description,
+        audio_key=audio_key,
+        cover_key=cover_key,
+        duration_sec=0, # Will be set by probe worker
+        bitrate_kbps=0,
+        sample_rate=0,
+        file_size_bytes=audio_size,
+        mime_type=audio_type,
+        download_allowed=meta.download_allowed,
+        license_type=meta.license_type,
+        rights_note=meta.rights_note,
+        status=SongStatus.PENDING,
+    )
+    song.artist = artist
+    song.genre = genre
+    db.add(song)
+    await db.flush()
+    from app.services.license_service import create_initial_license
+    await create_initial_license(db, song, meta.license_type.value if meta.license_type else None)
+    
+    from app.models.job import JobType
+    from app.services.job_service import enqueue
+    await enqueue(db, JobType.PROBE_UPLOAD, {"song_id": str(song_id), "audio_key": audio_key})
+    return song
+
 
 async def _read_replacement(file: UploadFile, allowed: dict[str, str], kind: str, max_bytes: int) -> tuple[bytes, str]:
     """Validate a replacement file exactly like a fresh upload, and read it.

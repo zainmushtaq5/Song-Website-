@@ -82,16 +82,55 @@ export default function UploadPage() {
     setFileError(null);
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.append("title", form.title.trim());
-      if (form.description.trim()) fd.append("description", form.description.trim());
-      if (form.genre.trim()) fd.append("genre", form.genre.trim());
-      fd.append("download_allowed", String(form.download_allowed));
-      if (form.download_allowed && form.license_type) fd.append("license_type", form.license_type);
-      if (form.rights_note.trim()) fd.append("rights_note", form.rights_note.trim());
-      fd.append("audio", audio);
-      fd.append("cover", cover);
-      await api<Song>("/api/songs", { method: "POST", formData: fd });
+      // 1. Get presigned URLs
+      const prepareRes = await api<{
+        song_id: string;
+        audio_key: string;
+        cover_key: string;
+        audio_url: string;
+        cover_url: string;
+      }>("/api/songs/prepare-upload", {
+        method: "POST",
+        body: JSON.stringify({
+          title: form.title.trim(),
+          audio_type: audio.type || "audio/mpeg",
+          cover_type: cover.type || "image/jpeg",
+        }),
+      });
+
+      // 2. Upload audio to R2 directly
+      const audioRes = await fetch(prepareRes.audio_url, {
+        method: "PUT",
+        body: audio,
+        headers: { "Content-Type": audio.type || "audio/mpeg" },
+      });
+      if (!audioRes.ok) throw new Error("Failed to upload audio file to storage");
+
+      // 3. Upload cover to R2 directly
+      const coverRes = await fetch(prepareRes.cover_url, {
+        method: "PUT",
+        body: cover,
+        headers: { "Content-Type": cover.type || "image/jpeg" },
+      });
+      if (!coverRes.ok) throw new Error("Failed to upload cover image to storage");
+
+      // 4. Finalize
+      await api<Song>("/api/songs/finalize-upload", {
+        method: "POST",
+        body: JSON.stringify({
+          song_id: prepareRes.song_id,
+          title: form.title.trim(),
+          description: form.description.trim() || undefined,
+          genre: form.genre.trim() || undefined,
+          download_allowed: form.download_allowed,
+          license_type: form.download_allowed && form.license_type ? form.license_type : undefined,
+          rights_note: form.rights_note.trim() || undefined,
+          audio_key: prepareRes.audio_key,
+          cover_key: prepareRes.cover_key,
+          audio_type: audio.type || "audio/mpeg",
+          audio_size: audio.size,
+        }),
+      });
       toast("Upload submitted for review", "success");
       setForm({ ...form, title: "", description: "", rights_note: "" });
       setAudio(null);
