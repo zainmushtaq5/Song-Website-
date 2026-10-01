@@ -27,3 +27,18 @@ async def list_jobs(
         stmt = stmt.where(Job.status == st)
     jobs = (await db.execute(stmt)).scalars().all()
     return [job_service.to_job_out(j) for j in jobs]
+
+
+@router.post("/sweep")
+async def run_jobs_sweep(
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> dict:
+    from app.models.job import JobType
+    from app.services.job_service import enqueue, run_pending_jobs
+
+    await enqueue(db, JobType.LICENSE_SWEEP)
+    ran = await run_pending_jobs(db, limit=limit)
+    await db.commit()
+    return {"status": "ok", "jobs_processed": ran}

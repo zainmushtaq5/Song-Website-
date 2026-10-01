@@ -139,6 +139,9 @@ async def create_song(
     audio_key = f"audio/{song_id}{ext}"
     cover_key = f"covers/{song_id}{cext}"
 
+    from app.utils.audio import probe_duration
+
+    dur, br, sr = probe_duration(audio_bytes)
     genre = await ensure_genre(db, meta.genre)
     song = Song(
         id=song_id,
@@ -149,7 +152,9 @@ async def create_song(
         description=meta.description,
         audio_key=audio_key,
         cover_key=cover_key,
-        duration_sec=0,  # probed asynchronously by the worker (probe_upload job)
+        duration_sec=dur or 0,
+        bitrate_kbps=br,
+        sample_rate=sr,
         file_size_bytes=len(audio_bytes),
         mime_type=audio.content_type,
         download_allowed=meta.download_allowed,
