@@ -85,6 +85,7 @@ async def health() -> dict:
 
 @app.get("/api/diag")
 async def diag() -> dict:
+    import os
     import traceback
     from sqlalchemy import text
     from app.core.database import AsyncSessionLocal
@@ -92,8 +93,17 @@ async def diag() -> dict:
 
     result = {
         "storage_driver": settings.STORAGE_DRIVER,
-        "db_url_masked": settings.async_database_url[:35] + "...",
+        "db_url_prefix": settings.async_database_url[:60] + "...",
         "environment": settings.ENVIRONMENT,
+        "job_worker_enabled": settings.JOB_WORKER_ENABLED,
+        "cors_origins": settings.cors_origins_list,
+        "db_status": "not_tested",
+        "env_vars_present": {
+            "DATABASE_URL": bool(os.environ.get("DATABASE_URL")),
+            "JWT_SECRET": bool(os.environ.get("JWT_SECRET")),
+            "CORS_ORIGINS": bool(os.environ.get("CORS_ORIGINS")),
+            "JOB_WORKER_ENABLED": os.environ.get("JOB_WORKER_ENABLED", "NOT_SET"),
+        }
     }
     try:
         async with AsyncSessionLocal() as session:
@@ -103,6 +113,7 @@ async def diag() -> dict:
             result["songs_count"] = count
     except Exception as e:
         result["db_status"] = "error"
+        result["db_error_type"] = type(e).__name__
         result["db_error"] = str(e)
         result["traceback"] = traceback.format_exc()
     return result
