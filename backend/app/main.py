@@ -81,3 +81,28 @@ if settings.STORAGE_DRIVER == "local":
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/api/diag")
+async def diag() -> dict:
+    import traceback
+    from sqlalchemy import text
+    from app.core.database import AsyncSessionLocal
+    from app.core.config import settings
+
+    result = {
+        "storage_driver": settings.STORAGE_DRIVER,
+        "db_url_masked": settings.async_database_url[:35] + "...",
+        "environment": settings.ENVIRONMENT,
+    }
+    try:
+        async with AsyncSessionLocal() as session:
+            db_res = await session.execute(text("SELECT count(*) FROM songs"))
+            count = db_res.scalar()
+            result["db_status"] = "connected"
+            result["songs_count"] = count
+    except Exception as e:
+        result["db_status"] = "error"
+        result["db_error"] = str(e)
+        result["traceback"] = traceback.format_exc()
+    return result
