@@ -362,11 +362,27 @@ async def admin_soft_delete(db: AsyncSession, song: Song) -> None:
 
 
 def _cover_url(song: Song) -> str | None:
-    return storage.presigned_get_url(song.cover_key, ttl=3600)
+    if not song.cover_key:
+        return None
+    # If CDN_URL is set (e.g. Cloudflare R2 public bucket), serve directly — no boto3 needed.
+    if settings.CDN_URL:
+        return f"{settings.CDN_URL.rstrip('/')}/{song.cover_key}"
+    try:
+        return storage.presigned_get_url(song.cover_key, ttl=3600)
+    except Exception:
+        return None
 
 
 def _audio_url(song: Song) -> str | None:
-    return storage.presigned_get_url(song.audio_key, ttl=600)
+    if not song.audio_key:
+        return None
+    # If CDN_URL is set (e.g. Cloudflare R2 public bucket), serve directly — no boto3 needed.
+    if settings.CDN_URL:
+        return f"{settings.CDN_URL.rstrip('/')}/{song.audio_key}"
+    try:
+        return storage.presigned_get_url(song.audio_key, ttl=600)
+    except Exception:
+        return None
 
 
 def to_song_out(song: Song) -> SongOut:
