@@ -8,9 +8,6 @@ alembic==1.14.0
 pyjwt==2.10.1
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-boto3==1.35.90
-redis==5.2.1
 python-multipart==0.0.20
 email-validator==2.2.0
 slowapi==0.1.9
-httpx==0.28.1
