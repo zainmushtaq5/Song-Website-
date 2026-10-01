@@ -56,18 +56,23 @@ async def cover_proxy(
     url: str,
     user: User = Depends(get_current_user),
 ):
-    import httpx
+    import asyncio
+    import urllib.request
     from fastapi.responses import Response
 
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid URL")
 
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.get(url)
-        if resp.status_code != 200:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch image")
-        ct = resp.headers.get("content-type", "image/jpeg")
-        return Response(content=resp.content, media_type=ct)
+    def _fetch():
+        req = urllib.request.Request(url, headers={"User-Agent": "SongsWebsite/1.0"})
+        with urllib.request.urlopen(req, timeout=8.0) as resp:
+            return resp.read(), resp.headers.get("content-type", "image/jpeg")
+
+    try:
+        content, ct = await asyncio.to_thread(_fetch)
+        return Response(content=content, media_type=ct)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch image")
 
 
 @router.get("/by-slug/{slug}", response_model=SongOut)

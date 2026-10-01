@@ -5,17 +5,17 @@ Uses public, no-API-key-required endpoints:
 2. Deezer API (broad international / regional / indie catalogue, 500x500 cover artwork)
 3. MusicBrainz API (deep tags, community genre categorization, license hints)
 
-Fetches and merges metadata and optionally fetches the cover image bytes to return
-a ready-to-use base64 data URL so the client can convert it to a File object directly
-without CORS issues.
+Uses httpx when available, with a resilient fallback to standard library urllib.request
+so the service never fails to import or execute even in minimal serverless environments.
 """
 
+import asyncio
 import base64
+import json
 import logging
 import urllib.parse
+import urllib.request
 from typing import Any
-
-import httpx
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,21 @@ _ROYALTY_FREE_KEYWORDS = {
 _CC_KEYWORDS = {
     "creative commons", "cc by", "cc-by", "ccby", "attribution", "cc by-sa", "cc0"
 }
+
+
+def _http_get_json(url: str, timeout: float = _TIMEOUT) -> dict[str, Any]:
+    """Synchronous JSON GET via standard library."""
+    req = urllib.request.Request(url, headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8", errors="ignore"))
+
+
+def _http_get_bytes(url: str, timeout: float = 6.0) -> tuple[bytes, str]:
+    """Synchronous binary GET via standard library."""
+    req = urllib.request.Request(url, headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        content_type = resp.headers.get("content-type", "image/jpeg")
+        return resp.read(), content_type
 
 
 def _infer_license_type(title: str, artist: str, tags: list[str]) -> tuple[str, bool]:
@@ -59,7 +74,6 @@ def _clean_genre(genre: str | None) -> str | None:
     if not genre:
         return None
     g = genre.strip()
-    # Normalize common iTunes labels
     mappings = {
         "Hip-Hop/Rap": "Hip-Hop",
         "Hip Hop": "Hip-Hop",
@@ -74,14 +88,11 @@ def _clean_genre(genre: str | None) -> str | None:
     return mappings.get(g, g)
 
 
-async def _search_itunes(query: str, client: httpx.AsyncClient) -> dict[str, Any]:
+async def _search_itunes(query: str) -> dict[str, Any]:
     params = urllib.parse.urlencode({"term": query, "media": "music", "limit": "3", "entity": "song"})
     url = f"{_ITUNES_BASE}?{params}"
     try:
-        resp = await client.get(url)
-        if resp.status_code != 200:
-            return {}
-        data = resp.json()
+        data = await asyncio.to_thread(_http_get_json, url)
         results = data.get("results", [])
         if not results:
             return {}
@@ -102,14 +113,11 @@ async def _search_itunes(query: str, client: httpx.AsyncClient) -> dict[str, Any
         return {}
 
 
-async def _search_deezer(query: str, client: httpx.AsyncClient) -> dict[str, Any]:
+async def _search_deezer(query: str) -> dict[str, Any]:
     params = urllib.parse.urlencode({"q": query, "limit": "3"})
     url = f"{_DEEZER_BASE}?{params}"
     try:
-        resp = await client.get(url)
-        if resp.status_code != 200:
-            return {}
-        data = resp.json()
+        data = await asyncio.to_thread(_http_get_json, url)
         items = data.get("data", [])
         if not items:
             return {}
@@ -129,7 +137,7 @@ async def _search_deezer(query: str, client: httpx.AsyncClient) -> dict[str, Any
         return {}
 
 
-async def _search_musicbrainz(query: str, client: httpx.AsyncClient) -> dict[str, Any]:
+async def _search_musicbrainz(query: str) -> dict[str, Any]:
     params = urllib.parse.urlencode({
         "query": f'recording:"{query}"',
         "fmt": "json",
@@ -137,10 +145,7 @@ async def _search_musicbrainz(query: str, client: httpx.AsyncClient) -> dict[str
     })
     url = f"{_MB_BASE}/recording?{params}"
     try:
-        resp = await client.get(url)
-        if resp.status_code != 200:
-            return {}
-        data = resp.json()
+        data = await asyncio.to_thread(_http_get_json, url)
         recordings = data.get("recordings", [])
         if not recordings:
             return {}
@@ -155,17 +160,16 @@ async def _search_musicbrainz(query: str, client: httpx.AsyncClient) -> dict[str
         return {}
 
 
-async def _fetch_image_as_data_url(image_url: str, client: httpx.AsyncClient) -> str | None:
+async def _fetch_image_as_data_url(image_url: str) -> str | None:
     """Download image bytes and return as data:image/...;base64,... string."""
     try:
-        resp = await client.get(image_url, timeout=6.0)
-        if resp.status_code == 200 and resp.content:
-            content_type = resp.headers.get("content-type", "image/jpeg")
+        content, content_type = await asyncio.to_thread(_http_get_bytes, image_url)
+        if content:
             if ";" in content_type:
                 content_type = content_type.split(";")[0].strip()
             if not content_type.startswith("image/"):
                 content_type = "image/jpeg"
-            b64_str = base64.b64encode(resp.content).decode("ascii")
+            b64_str = base64.b64encode(content).decode("ascii")
             return f"data:{content_type};base64,{b64_str}"
     except Exception as exc:  # noqa: BLE001
         log.warning("Failed to download cover image %r: %s", image_url, exc)
@@ -206,62 +210,63 @@ async def lookup_song_metadata(query: str) -> dict[str, Any]:
             "sources": [],
         }
 
-    async with httpx.AsyncClient(headers=_HEADERS, timeout=_TIMEOUT, follow_redirects=True) as client:
-        # Run iTunes and Deezer searches
-        itunes = await _search_itunes(clean_query, client)
-        deezer = await _search_deezer(clean_query, client)
-        mb = await _search_musicbrainz(clean_query, client)
+    # Run iTunes, Deezer, and MusicBrainz searches concurrently
+    itunes_task = asyncio.create_task(_search_itunes(clean_query))
+    deezer_task = asyncio.create_task(_search_deezer(clean_query))
+    mb_task = asyncio.create_task(_search_musicbrainz(clean_query))
 
-        sources = []
-        if itunes:
-            sources.append("itunes")
-        if deezer:
-            sources.append("deezer")
-        if mb:
-            sources.append("musicbrainz")
+    itunes, deezer, mb = await asyncio.gather(itunes_task, deezer_task, mb_task)
 
-        # Pick best artist, album, genre, cover_url
-        artist = itunes.get("artist") or deezer.get("artist")
-        album = itunes.get("album") or deezer.get("album")
-        song_name = itunes.get("title") or deezer.get("title") or clean_query
-        genre = itunes.get("genre")
+    sources = []
+    if itunes:
+        sources.append("itunes")
+    if deezer:
+        sources.append("deezer")
+    if mb:
+        sources.append("musicbrainz")
 
-        # Fallback genre from MusicBrainz tags if iTunes didn't give one
-        mb_tags = mb.get("tags", [])
-        if not genre and mb_tags:
-            genre = _clean_genre(mb_tags[0].title())
+    # Pick best artist, album, genre, cover_url
+    artist = itunes.get("artist") or deezer.get("artist")
+    album = itunes.get("album") or deezer.get("album")
+    song_name = itunes.get("title") or deezer.get("title") or clean_query
+    genre = itunes.get("genre")
 
-        # Cover image priority: iTunes 600x600 -> Deezer 500x500
-        cover_url = itunes.get("cover_url") or deezer.get("cover_url")
+    # Fallback genre from MusicBrainz tags if iTunes didn't give one
+    mb_tags = mb.get("tags", [])
+    if not genre and mb_tags:
+        genre = _clean_genre(mb_tags[0].title())
 
-        # Download image into base64 data url for easy client-side conversion to File
-        cover_data_url = None
-        if cover_url:
-            cover_data_url = await _fetch_image_as_data_url(cover_url, client)
+    # Cover image priority: iTunes 600x600 -> Deezer 500x500
+    cover_url = itunes.get("cover_url") or deezer.get("cover_url")
 
-        # License inference
-        license_type, dl_allowed = _infer_license_type(song_name, artist or "", mb_tags + ([genre] if genre else []))
+    # Download image into base64 data url for easy client-side conversion to File
+    cover_data_url = None
+    if cover_url:
+        cover_data_url = await _fetch_image_as_data_url(cover_url)
 
-        # Suggested description
-        desc_parts = []
-        if artist:
-            desc_parts.append(f"Artist: {artist}")
-        if album:
-            desc_parts.append(f"Album: {album}")
-        if genre:
-            desc_parts.append(f"Genre: {genre}")
-        description = " · ".join(desc_parts)
+    # License inference
+    license_type, dl_allowed = _infer_license_type(song_name, artist or "", mb_tags + ([genre] if genre else []))
 
-        return {
-            "song_name": song_name,
-            "artist_name": artist,
-            "album": album,
-            "genre": genre,
-            "cover_url": cover_url,
-            "cover_data_url": cover_data_url,
-            "license_type": license_type,
-            "download_allowed": dl_allowed,
-            "description": description,
-            "tags": mb_tags,
-            "sources": sources,
-        }
+    # Suggested description
+    desc_parts = []
+    if artist:
+        desc_parts.append(f"Artist: {artist}")
+    if album:
+        desc_parts.append(f"Album: {album}")
+    if genre:
+        desc_parts.append(f"Genre: {genre}")
+    description = " · ".join(desc_parts)
+
+    return {
+        "song_name": song_name,
+        "artist_name": artist,
+        "album": album,
+        "genre": genre,
+        "cover_url": cover_url,
+        "cover_data_url": cover_data_url,
+        "license_type": license_type,
+        "download_allowed": dl_allowed,
+        "description": description,
+        "tags": mb_tags,
+        "sources": sources,
+    }
