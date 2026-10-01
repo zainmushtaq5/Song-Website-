@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import Link from "next/link";
 import { ChevronUp, Music4, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { NowPlayingSheet } from "@/components/music/now-playing-sheet";
 import { audioElementRef } from "@/components/music/player";
@@ -28,6 +28,9 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
   const repeat = usePlayerStore((s) => s.repeat);
   const reduced = useReducedMotion();
   const [expanded, setExpanded] = useState(false);
+  const seekBarRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [dragValue, setDragValue] = useState(0);
 
   // Fall back to the placeholder when the (dynamic) cover URL fails to load.
   const coverSrc = song.cover_url ? resolveMediaUrl(song.cover_url) : null;
@@ -35,7 +38,21 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
   const showCover = Boolean(coverSrc) && coverSrc !== failedCover;
 
   const progress = total > 0 ? Math.min(1, position / total) : 0;
+  const displayPos = dragging ? dragValue : position;
+  const displayProgress = total > 0 ? Math.min(1, displayPos / total) : 0;
 
+  function getSeekValue(clientX: number): number {
+    const bar = seekBarRef.current;
+    if (!bar || total <= 0) return 0;
+    const rect = bar.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(ratio * total);
+  }
+
+  function commitSeek(value: number) {
+    usePlayerStore.setState({ position: value });
+    if (audioElementRef.current) audioElementRef.current.currentTime = value;
+  }
   return (
     <>
     <motion.div
@@ -158,22 +175,56 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
         {/* Seek */}
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted">
-            {formatDuration(position)}
+            {formatDuration(dragging ? dragValue : position)}
           </span>
-          <input
-            type="range"
-            min={0}
-            max={total || 1}
-            step={1}
-            value={Math.min(position, total || 1)}
-            onChange={(e) => {
-              const t = Number(e.target.value);
-              usePlayerStore.setState({ position: t });
-              if (audioElementRef.current) audioElementRef.current.currentTime = t;
-            }}
+          {/* Custom seek bar — works reliably on all devices including touch */}
+          <div
+            ref={seekBarRef}
+            role="slider"
             aria-label="Seek"
-            className="h-1 w-full cursor-pointer accent-[var(--color-accent)]"
-          />
+            aria-valuemin={0}
+            aria-valuemax={total || 1}
+            aria-valuenow={Math.round(dragging ? dragValue : position)}
+            tabIndex={total > 0 ? 0 : -1}
+            className={`relative h-4 flex-1 flex items-center cursor-pointer group ${total <= 0 ? "opacity-40 pointer-events-none" : ""}`}
+            onPointerDown={(e) => {
+              if (total <= 0) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setDragging(true);
+              const v = getSeekValue(e.clientX);
+              setDragValue(v);
+            }}
+            onPointerMove={(e) => {
+              if (!dragging) return;
+              setDragValue(getSeekValue(e.clientX));
+            }}
+            onPointerUp={(e) => {
+              if (!dragging) return;
+              const v = getSeekValue(e.clientX);
+              setDragging(false);
+              commitSeek(v);
+            }}
+            onPointerCancel={() => setDragging(false)}
+            onKeyDown={(e) => {
+              if (!total) return;
+              const step = e.shiftKey ? 30 : 5;
+              if (e.key === "ArrowRight") { e.preventDefault(); commitSeek(Math.min(total, position + step)); }
+              if (e.key === "ArrowLeft")  { e.preventDefault(); commitSeek(Math.max(0, position - step)); }
+            }}
+          >
+            {/* Track background */}
+            <div className="absolute inset-x-0 h-1 rounded-full bg-line/60" />
+            {/* Filled portion */}
+            <div
+              className="absolute left-0 h-1 rounded-full bg-accent transition-[width] duration-75 ease-linear"
+              style={{ width: `${displayProgress * 100}%` }}
+            />
+            {/* Thumb */}
+            <div
+              className="absolute h-3 w-3 rounded-full bg-accent shadow-sm transition-transform duration-75 group-hover:scale-125"
+              style={{ left: `calc(${displayProgress * 100}% - 6px)` }}
+            />
+          </div>
           <span className="w-10 shrink-0 text-[11px] tabular-nums text-muted">
             {formatDuration(total)}
           </span>

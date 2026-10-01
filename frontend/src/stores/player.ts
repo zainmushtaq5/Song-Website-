@@ -5,6 +5,15 @@ import { create } from "zustand";
 import { api } from "@/lib/api";
 import type { Song } from "@/types/api";
 
+// Reference to the live <audio> element so stores can seek without prop-drilling.
+let _audioEl: HTMLAudioElement | null = null;
+export function registerAudioElement(el: HTMLAudioElement | null) {
+  _audioEl = el;
+}
+function seekAudio(t: number) {
+  if (_audioEl) _audioEl.currentTime = t;
+}
+
 interface PlayerState {
   queue: Song[];
   currentIndex: number;
@@ -67,7 +76,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const { queue, currentIndex, position } = get();
     if (currentIndex < 0) return;
     if (position > 3 || currentIndex === 0) {
+      // Restart the current track — also reset the audio element's time
       set({ position: 0 });
+      seekAudio(0);
     } else {
       set({ currentIndex: currentIndex - 1, isPlaying: true, position: 0 });
     }

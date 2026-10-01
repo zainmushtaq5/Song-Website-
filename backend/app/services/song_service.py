@@ -423,11 +423,13 @@ async def list_public_songs(
     sort: str = "recent",
     page: int = 1,
     page_size: int = 20,
-    genre_slug: str | None = None,
+    genre: str | None = None,
 ) -> list[Song]:
     stmt = select(Song).where(Song.status == SongStatus.APPROVED, Song.deleted_at.is_(None))
-    if genre_slug:
-        stmt = stmt.join(Genre, Song.genre_id == Genre.id).where(Genre.slug == genre_slug)
+    if genre:
+        stmt = stmt.join(Genre, Song.genre_id == Genre.id).where(
+            (Genre.slug == genre) | (func.lower(Genre.name) == func.lower(genre))
+        )
     if sort == "trending":
         # Phase 2: time-weighted score over the last 7 days.
         # score = plays*1 + likes*3 + downloads*5 (recent only), then lifetime

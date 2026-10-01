@@ -75,9 +75,12 @@ export function MetadataAutofillButton({
           const res = await fetch(data.cover_data_url);
           const blob = await res.blob();
           const cleanName = (data.song_name || "artwork").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30);
-          coverFile = new File([blob], `${cleanName}_cover.jpg`, { type: blob.type || "image/jpeg" });
+          // Use explicit type and extension so backend MIME validation passes
+          const fileType = blob.type.startsWith("image/") ? blob.type : "image/jpeg";
+          const ext = fileType === "image/png" ? ".png" : fileType === "image/webp" ? ".webp" : ".jpg";
+          coverFile = new File([blob], `${cleanName}_cover${ext}`, { type: fileType });
         } catch {
-          // If blob conversion fails, proceed without image file
+          // If blob conversion fails, proceed without image file — user can upload manually
         }
       }
 

@@ -72,7 +72,18 @@ export function NowPlayingSheet({ song, total, isPlaying, open, onClose }: NowPl
   const reduced = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const glowRef = useRef<HTMLDivElement | null>(null);
+  const seekBarRef = useRef<HTMLDivElement | null>(null);
   const [variant, setVariant] = useState<VisualizerVariant>("bars");
+  const [dragging, setDragging] = useState(false);
+  const [dragValue, setDragValue] = useState(0);
+
+  function getSeekValue(clientX: number): number {
+    const bar = seekBarRef.current;
+    if (!bar || total <= 0) return 0;
+    const rect = bar.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(ratio * total);
+  }
 
   // Upcoming tracks: the queue tail, wrapping when repeat-all is on.
   const upNext: { song: Song; position: number }[] = [];
@@ -324,18 +335,55 @@ export function NowPlayingSheet({ song, total, isPlaying, open, onClose }: NowPl
             {/* Seek */}
             <div className="mt-5 flex items-center gap-3">
               <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted">
-                {formatDuration(position)}
+                {formatDuration(dragging ? dragValue : position)}
               </span>
-              <input
-                type="range"
-                min={0}
-                max={total || 1}
-                step={1}
-                value={Math.min(position, total || 1)}
-                onChange={(e) => seekTo(Number(e.target.value))}
+              {/* Custom seek bar */}
+              <div
+                ref={seekBarRef}
+                role="slider"
                 aria-label="Seek"
-                className="h-1 w-full cursor-pointer accent-[var(--color-accent)]"
-              />
+                aria-valuemin={0}
+                aria-valuemax={total || 1}
+                aria-valuenow={Math.round(dragging ? dragValue : position)}
+                tabIndex={total > 0 ? 0 : -1}
+                className={`relative h-6 flex-1 flex items-center cursor-pointer group ${total <= 0 ? "opacity-40 pointer-events-none" : ""}`}
+                onPointerDown={(e) => {
+                  if (total <= 0) return;
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  setDragging(true);
+                  setDragValue(getSeekValue(e.clientX));
+                }}
+                onPointerMove={(e) => {
+                  if (!dragging) return;
+                  setDragValue(getSeekValue(e.clientX));
+                }}
+                onPointerUp={(e) => {
+                  if (!dragging) return;
+                  const v = getSeekValue(e.clientX);
+                  setDragging(false);
+                  seekTo(v);
+                }}
+                onPointerCancel={() => setDragging(false)}
+                onKeyDown={(e) => {
+                  if (!total) return;
+                  const step = e.shiftKey ? 30 : 10;
+                  if (e.key === "ArrowRight") { e.preventDefault(); seekTo(Math.min(total, position + step)); }
+                  if (e.key === "ArrowLeft")  { e.preventDefault(); seekTo(Math.max(0, position - step)); }
+                }}
+              >
+                {/* Track */}
+                <div className="absolute inset-x-0 h-1.5 rounded-full bg-line/60" />
+                {/* Fill */}
+                <div
+                  className="absolute left-0 h-1.5 rounded-full bg-accent transition-[width] duration-75 ease-linear"
+                  style={{ width: `${total > 0 ? Math.min(1, (dragging ? dragValue : position) / total) * 100 : 0}%` }}
+                />
+                {/* Thumb */}
+                <div
+                  className="absolute h-4 w-4 rounded-full bg-accent shadow-md transition-transform duration-75 group-hover:scale-125 group-active:scale-110"
+                  style={{ left: `calc(${total > 0 ? Math.min(1, (dragging ? dragValue : position) / total) * 100 : 0}% - 8px)` }}
+                />
+              </div>
               <span className="w-10 shrink-0 text-[11px] tabular-nums text-muted">
                 {formatDuration(total)}
               </span>
