@@ -91,11 +91,11 @@ export default function UploadPage() {
         cover_url: string;
       }>("/api/songs/prepare-upload", {
         method: "POST",
-        body: JSON.stringify({
+        json: {
           title: form.title.trim(),
           audio_type: audio.type || "audio/mpeg",
           cover_type: cover.type || "image/jpeg",
-        }),
+        },
       });
 
       // 2. Upload audio to R2 directly
@@ -117,7 +117,7 @@ export default function UploadPage() {
       // 4. Finalize
       await api<Song>("/api/songs/finalize-upload", {
         method: "POST",
-        body: JSON.stringify({
+        json: {
           song_id: prepareRes.song_id,
           title: form.title.trim(),
           description: form.description.trim() || undefined,
@@ -129,7 +129,7 @@ export default function UploadPage() {
           cover_key: prepareRes.cover_key,
           audio_type: audio.type || "audio/mpeg",
           audio_size: audio.size,
-        }),
+        },
       });
       toast("Upload submitted for review", "success");
       setForm({ ...form, title: "", description: "", rights_note: "" });
