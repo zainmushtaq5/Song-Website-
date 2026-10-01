@@ -28,7 +28,12 @@ ARTIST_LIMIT = 4
 
 
 def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
+    """Return the current UTC time as a timezone-aware datetime.
+
+    PostgreSQL TIMESTAMP WITH TIME ZONE columns are returned as tz-aware
+    datetimes by asyncpg/SQLAlchemy, so comparisons must use tz-aware values.
+    """
+    return datetime.now(UTC)
 
 
 async def _user_signal_songs(db: AsyncSession, user_id: uuid.UUID) -> list[Song]:
@@ -75,8 +80,12 @@ def _score(song: Song, top_genres: list[uuid.UUID], top_artists: list[uuid.UUID]
     if song.artist_id in top_artists:
         score += 2.0
     score += song.play_count * 0.01 + song.like_count * 0.05
-    if song.created_at and song.created_at >= now - timedelta(days=30):
-        score += 2.0
+    if song.created_at:
+        # Normalize to tz-aware UTC so comparisons work regardless of whether
+        # the DB driver returns naive (SQLite) or aware (PostgreSQL) datetimes.
+        song_ts = song.created_at if song.created_at.tzinfo else song.created_at.replace(tzinfo=UTC)
+        if song_ts >= now - timedelta(days=30):
+            score += 2.0
     return score
 
 
