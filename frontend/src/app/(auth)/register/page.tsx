@@ -49,6 +49,10 @@ export default function RegisterPage() {
 
   return (
     <div className="rounded-card border border-line bg-surface p-6 sm:p-8">
+      <div className="mb-6 flex flex-col items-center text-center">
+        <img src="/logo.png" alt="Nizara" className="h-10 w-auto object-contain" />
+        <p className="mt-1 text-[10px] uppercase tracking-widest text-muted">powered by ZAIN AWAN</p>
+      </div>
       <h1 className="text-xl font-bold tracking-tight">Join</h1>
       <p className="mt-1 text-sm text-muted">
         Create an account to listen, like, download — and upload your own music.
