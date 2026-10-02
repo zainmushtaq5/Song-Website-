@@ -15,6 +15,22 @@ import { useAuthStore } from "@/stores/auth";
 import { toast } from "@/stores/toast";
 import type { LicenseType, Song } from "@/types/api";
 
+function getAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    const url = URL.createObjectURL(file);
+    audio.onloadedmetadata = () => {
+      resolve(Math.round(audio.duration));
+      URL.revokeObjectURL(url);
+    };
+    audio.onerror = () => {
+      resolve(0);
+      URL.revokeObjectURL(url);
+    };
+    audio.src = url;
+  });
+}
+
 const LICENSE_OPTIONS: { value: LicenseType | ""; label: string }[] = [
   { value: "artist_owned", label: "I own this recording (artist-owned)" },
   { value: "royalty_free", label: "Royalty-free" },
@@ -127,6 +143,10 @@ export default function UploadPage() {
         if (!coverRes.ok) throw new Error("Failed to upload cover image to storage");
 
         // 4. Finalize
+        let durationSec = 0;
+        if (audio) {
+          durationSec = await getAudioDuration(audio);
+        }
         await api<Song>("/api/songs/finalize-upload", {
           method: "POST",
           json: {
@@ -141,6 +161,7 @@ export default function UploadPage() {
             cover_key: prepareRes.cover_key,
             audio_type: audio!.type || "audio/mpeg",
             audio_size: audio!.size,
+            duration_sec: durationSec,
           },
         });
         toast("Upload submitted for review", "success");

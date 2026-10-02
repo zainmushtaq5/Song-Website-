@@ -189,6 +189,7 @@ async def create_song_direct(
     cover_key: str,
     audio_type: str,
     audio_size: int,
+    duration_sec: int = 0,
 ) -> Song:
     await enforce_rate_limit(request, "upload", str(user.id))
     artist = await get_or_create_artist(db, user)
@@ -204,7 +205,7 @@ async def create_song_direct(
         description=meta.description,
         audio_key=audio_key,
         cover_key=cover_key,
-        duration_sec=0, # Will be set by probe worker
+        duration_sec=duration_sec,
         bitrate_kbps=0,
         sample_rate=0,
         file_size_bytes=audio_size,

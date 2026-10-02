@@ -185,6 +185,7 @@ class FinalizeUploadIn(BaseModel):
     cover_key: str
     audio_type: str
     audio_size: int
+    duration_sec: int = 0
 
 @router.post("/finalize-upload", response_model=SongOut)
 async def finalize_upload(
@@ -205,7 +206,7 @@ async def finalize_upload(
         license_type=lt,
         rights_note=req.rights_note,
     )
-    song = await song_service.create_song_direct(db, request, user, meta, req.song_id, req.audio_key, req.cover_key, req.audio_type, req.audio_size)
+    song = await song_service.create_song_direct(db, request, user, meta, req.song_id, req.audio_key, req.cover_key, req.audio_type, req.audio_size, req.duration_sec)
     return song_service.to_song_out(song)
 
 
@@ -238,7 +239,8 @@ async def request_song(
         audio_key="", 
         cover_key="", 
         audio_type="", 
-        audio_size=0
+        audio_size=0,
+        duration_sec=0
     )
     return song_service.to_song_out(song)
 
