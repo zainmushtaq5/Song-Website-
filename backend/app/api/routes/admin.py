@@ -182,3 +182,89 @@ async def admin_delete_song(
         song_id=song.id,
     )
     return SongStatusOut(id=song.id, status=song.status, rejection_reason=None)
+
+
+@router.post("/apply-r2-cors")
+async def apply_r2_cors(admin: User = Depends(require_admin)) -> dict:
+    """One-shot: set CORS on the R2 bucket so browsers can PUT files directly.
+    Safe to call multiple times — idempotent. Remove after first successful call."""
+    import hashlib
+    import hmac as _hmac
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    from datetime import UTC, datetime
+
+    from app.core.config import settings
+
+    if settings.STORAGE_DRIVER != "r2":
+        return {"status": "skipped", "reason": "storage driver is not r2"}
+
+    CORS_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://song-website-oylp.vercel.app</AllowedOrigin>
+    <AllowedOrigin>https://*.vercel.app</AllowedOrigin>
+    <AllowedOrigin>http://localhost:3000</AllowedOrigin>
+    <AllowedOrigin>http://localhost:3001</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>DELETE</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>""".strip().encode("utf-8")
+
+    def _sign(key: bytes, msg: str) -> bytes:
+        return _hmac.new(key, msg.encode(), hashlib.sha256).digest()
+
+    def _sha256_hex(data: bytes) -> str:
+        return hashlib.sha256(data).hexdigest()
+
+    now = datetime.now(UTC)
+    amzdate = now.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = now.strftime("%Y%m%d")
+    region = "auto"
+    service = "s3"
+
+    endpoint = settings.STORAGE_ENDPOINT.rstrip("/")
+    bucket = settings.STORAGE_BUCKET
+    host = urllib.parse.urlparse(endpoint).netloc
+    payload_hash = _sha256_hex(CORS_XML)
+
+    headers_map = {
+        "content-type": "application/xml",
+        "host": host,
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": amzdate,
+    }
+    signed_headers = ";".join(sorted(headers_map.keys()))
+    canonical_headers = "".join(f"{k}:{headers_map[k]}\n" for k in sorted(headers_map.keys()))
+    canonical_request = "\n".join(["PUT", f"/{bucket}", "cors", canonical_headers, signed_headers, payload_hash])
+
+    credential_scope = f"{datestamp}/{region}/{service}/aws4_request"
+    string_to_sign = "\n".join(["AWS4-HMAC-SHA256", amzdate, credential_scope, _sha256_hex(canonical_request.encode())])
+
+    k = _sign(("AWS4" + settings.STORAGE_SECRET_KEY).encode(), datestamp)
+    k = _sign(k, region); k = _sign(k, service); k = _sign(k, "aws4_request")
+    signature = _hmac.new(k, string_to_sign.encode(), hashlib.sha256).hexdigest()
+
+    auth = (f"AWS4-HMAC-SHA256 Credential={settings.STORAGE_ACCESS_KEY}/{credential_scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}")
+
+    url = f"{endpoint}/{bucket}?cors"
+    req = urllib.request.Request(url, data=CORS_XML, method="PUT")
+    req.add_header("Authorization", auth)
+    req.add_header("Content-Type", "application/xml")
+    req.add_header("X-Amz-Content-Sha256", payload_hash)
+    req.add_header("X-Amz-Date", amzdate)
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return {"status": "ok", "http": resp.status, "bucket": bucket}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        raise HTTPException(status_code=500, detail=f"R2 CORS error {e.code}: {body}")
+
