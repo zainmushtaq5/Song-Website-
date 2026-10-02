@@ -28,7 +28,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-line bg-bg/85 pt-[var(--safe-t)] backdrop-blur">
       <nav className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-bold tracking-tight" aria-label="Nizara home">
-          <img src="/logo.png" alt="Nizara" className="h-12 w-auto object-contain" />
+          <img src="/logo.png" alt="Nizara" className="h-9 w-auto object-contain" />
         </Link>
 
         <div className="hidden items-center gap-1 sm:flex">
