@@ -146,7 +146,7 @@ async def prepare_upload(
     user: User = Depends(get_current_user)
 ):
     from app.services.storage_service import storage
-    from app.utils.validators import ALLOWED_AUDIO_TYPES, ALLOWED_COVER_TYPES
+    from app.services.song_service import ALLOWED_AUDIO_TYPES, ALLOWED_COVER_TYPES
     from uuid import uuid4
 
     if req.audio_type not in ALLOWED_AUDIO_TYPES:

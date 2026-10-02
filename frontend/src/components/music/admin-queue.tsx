@@ -78,7 +78,7 @@ export function AdminQueue({
       return;
     }
     try {
-      await api(`/api/admin/songs/${song.id}/reject`, { method: "POST", json: { reason } });
+      await api(`/api/admin/songs/${song.id}/reject`, { method: "POST", json: { rejection_reason: reason } });
       toast(`Rejected “${song.title}”`, "success");
       setSongs((prev) => (prev ?? []).filter((s) => s.id !== song.id));
     } catch (err) {

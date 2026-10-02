@@ -7,6 +7,10 @@ backend/**/*.pyo
 backend/.venv/
 backend/scripts/
 backend/.ruff_cache/
+backend/alembic/
+backend/*.db
+backend/*.log
+backend/.storage/
 frontend/.next/
 frontend/node_modules/
 **/.git/

@@ -60,8 +60,20 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 async def create_initial_license(db: AsyncSession, song, license_type: str | None) -> None:
-    """Called from song upload: every song gets a license record, PENDING by default."""
-    lic = License(song_id=song.id, status=LicenseStatus.PENDING, license_type=license_type)
+    """Called from song upload: every song gets a license record.
+
+    Standard license types (artist_owned, royalty_free, cc_by) are auto-approved
+    because they require no external proof — the artist's declaration is sufficient.
+    Only 'other' stays PENDING and goes through the manual license review queue,
+    since it needs a proof_reference / rights note to be verified by the team.
+    """
+    _SELF_EVIDENT = {"artist_owned", "royalty_free", "cc_by"}
+    initial_status = (
+        LicenseStatus.APPROVED
+        if license_type in _SELF_EVIDENT
+        else LicenseStatus.PENDING
+    )
+    lic = License(song_id=song.id, status=initial_status, license_type=license_type)
     db.add(lic)
     song.license = lic  # populate in-memory so sync serialization never lazy-loads
     await db.flush()
