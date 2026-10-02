@@ -71,7 +71,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
       </div>
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-3 py-2.5 sm:px-6 sm:py-3">
         {/* Track info */}
-        <div className="flex min-w-0 items-center gap-2.5 sm:w-56 sm:shrink-0">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 md:flex-none md:w-56 md:shrink-0">
           <button
             type="button"
             onClick={() => setExpanded(true)}
@@ -131,7 +131,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().prev()}
             ariaLabel="Previous song"
-            className="hidden sm:inline-flex"
+            className="hidden md:inline-flex"
           >
             <SkipBack className="h-4 w-4 fill-current" aria-hidden />
           </Button>
@@ -153,7 +153,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().next()}
             ariaLabel="Next song"
-            className="hidden sm:inline-flex"
+            className="hidden md:inline-flex"
           >
             <SkipForward className="h-4 w-4 fill-current" aria-hidden />
           </Button>
@@ -162,7 +162,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().cycleRepeat()}
             ariaLabel={`Repeat: ${repeat}`}
-            className={`hidden sm:inline-flex ${repeat !== "off" ? "text-accent" : ""}`}
+            className={`hidden md:inline-flex ${repeat !== "off" ? "text-accent" : ""}`}
           >
             {repeat === "one" ? (
               <Repeat1 className="h-4 w-4" aria-hidden />
@@ -173,7 +173,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
         </div>
 
         {/* Seek */}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="hidden md:flex min-w-0 flex-1 items-center gap-2">
           <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted">
             {formatDuration(dragging ? dragValue : position)}
           </span>
@@ -231,7 +231,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
         </div>
 
         {/* Volume */}
-        <div className="hidden items-center gap-1.5 sm:flex sm:w-32 sm:shrink-0">
+        <div className="hidden items-center gap-1.5 md:flex md:w-32 md:shrink-0">
           <Button
             variant="ghost"
             size="icon"
