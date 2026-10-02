@@ -131,7 +131,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().prev()}
             ariaLabel="Previous song"
-            className="hidden md:inline-flex"
+            className="hidden lg:inline-flex"
           >
             <SkipBack className="h-4 w-4 fill-current" aria-hidden />
           </Button>
@@ -153,7 +153,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().next()}
             ariaLabel="Next song"
-            className="hidden md:inline-flex"
+            className="hidden lg:inline-flex"
           >
             <SkipForward className="h-4 w-4 fill-current" aria-hidden />
           </Button>
@@ -162,7 +162,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
             size="icon"
             onClick={() => usePlayerStore.getState().cycleRepeat()}
             ariaLabel={`Repeat: ${repeat}`}
-            className={`hidden md:inline-flex ${repeat !== "off" ? "text-accent" : ""}`}
+            className={`hidden lg:inline-flex ${repeat !== "off" ? "text-accent" : ""}`}
           >
             {repeat === "one" ? (
               <Repeat1 className="h-4 w-4" aria-hidden />
@@ -173,7 +173,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
         </div>
 
         {/* Seek */}
-        <div className="hidden md:flex min-w-0 flex-1 items-center gap-2">
+        <div className="hidden lg:flex min-w-0 flex-1 items-center gap-2">
           <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted">
             {formatDuration(dragging ? dragValue : position)}
           </span>
@@ -231,7 +231,7 @@ export function PlayerBar({ song, total, isPlaying }: PlayerBarProps) {
         </div>
 
         {/* Volume */}
-        <div className="hidden items-center gap-1.5 md:flex md:w-32 md:shrink-0">
+        <div className="hidden items-center gap-1.5 lg:flex lg:w-32 lg:shrink-0">
           <Button
             variant="ghost"
             size="icon"

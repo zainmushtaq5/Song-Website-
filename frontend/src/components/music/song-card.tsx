@@ -44,7 +44,7 @@ export function SongCard({ song, queue }: SongCardProps) {
         <button
           onClick={onPlay}
           aria-label={isCurrent && isPlaying ? `Pause ${song.title}` : `Play ${song.title}`}
-          className="absolute bottom-2 right-2 flex h-11 w-11 translate-y-1 items-center justify-center rounded-pill bg-accent text-white opacity-0 shadow-lg transition-all duration-200 hover:bg-accent-strong focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
+          className="absolute bottom-2 right-2 flex h-11 w-11 translate-y-0 opacity-100 lg:translate-y-1 lg:opacity-0 items-center justify-center rounded-pill bg-accent text-white shadow-lg transition-all duration-200 hover:bg-accent-strong focus-visible:translate-y-0 focus-visible:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
         >
           {isCurrent && isPlaying ? (
             <Pause className="h-5 w-5 fill-current" aria-hidden />
